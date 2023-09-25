@@ -27,12 +27,12 @@ class Administrator(models.Model):
         - price (float): Le prix de l'article
 
         Returns:
-        Article: L'objet Article nouvellement créé
+        str: Un message indiquant le succès ou l'échec de l'opération de création.
         """
 
         # Valider les données en entrée
         if not label or not price:
-            return None
+            return f"Le prix ou l'étiquette n'est pas renseigné"
 
         # Création de l'objet Article
         new_article = Article(
@@ -45,7 +45,7 @@ class Administrator(models.Model):
         )
         new_article.save()
 
-        return new_article
+        return f"L'article {label} au prix de {price} appartenant à la categorie {category} a été créé"
 
     def supprimer_article(self, article_id):
         """
@@ -83,7 +83,7 @@ class Administrator(models.Model):
         - **kwargs: Dictionnaire contenant les champs à modifier et les nouvelles valeurs
 
         Returns:
-        None
+        str: un message indiquant la réussite de l'opération de modification
 
         Raises:
         - TypeError: Si l'objet passé n'est pas une instance de la classe Article
@@ -105,6 +105,7 @@ class Administrator(models.Model):
             if modificiations_effectuees:
                 setattr(article, "admin", self)
                 article.save()
+                return f"La modificiation de l'article {article} a été effectuée avec succès"
 
     def creer_categorie(self, label):
         """
@@ -118,12 +119,19 @@ class Administrator(models.Model):
         - label (str): Le libellé de la nouvelle catégorie
 
         Returns:
-        Category: La nouvelle instance de la catégorie créée, ou None si le label est vide.
+        str: Un message indiquant le succès ou l'échec de l'opération de création.
 
         """
         # Valider les données en entrée
+        # print(Category.objects.get(label))
         if not label:
-            return None
+            return f"Le label n'est pas renseigné"
+
+        try:
+            existing_category = Category.objects.get(label=label)
+            return f"La catégorie {existing_category} est déjà présente dans la base de données"
+        except ObjectDoesNotExist:
+            pass  # continuez le code si la catégorie n'existe pas
 
         # Création de l'objet catégorie
         new_category = Category(
@@ -132,7 +140,7 @@ class Administrator(models.Model):
         )
         new_category.save()
 
-        return new_category
+        return f"La catégorie {label} a été créée avec succès"
 
     def supprimer_categorie(self, label):
         """
@@ -171,23 +179,124 @@ class Administrator(models.Model):
         - categorie (Categorie): L'objet catégorie dont le label doit être modifié.
         - nouveau_label (str): Le nouveau label pour la catégorie.
 
+        Returns:
+        str: un message indiquant la réussite de l'opération de modification
+
         Raises:
         TypeError: Si l'objet fourni n'est pas une instance de la classe `Categorie`.
         """
+
         if not isinstance(categorie, Category):
             raise TypeError(
                 "L'objet fourni n'est pas une instance de la classe Categorie.")
+        try:
+            existing_category = Category.objects.get(label=nouveau_label)
+            return None
+        except ObjectDoesNotExist:
+            pass  # continuez le code si la catégorie n'existe pas
+
         setattr(categorie, "label", nouveau_label)
+        setattr(categorie, "admin_id", self)
         categorie.save()
+        return f"Le nouveau label {nouveau_label} a été appliqué à la catégorie"
+
+    def modifier_appartenance_article(self, article, label_categorie):
+        """
+        Modifie la catégorie d'un article existant.
+
+        Cette méthode prend en paramètres un objet `article` de type Article et un label 
+        de catégorie en texte simple.
+        Elle recherche une catégorie avec le label correspondant dans la base de données. 
+        Si une telle catégorie existe, l'objet `article` est mis à jour avec cette nouvelle catégorie.
+
+        Parameters:
+        - article (Article): L'objet Article dont la catégorie doit être modifiée.
+        - label_categorie (str): Le label de la nouvelle catégorie que l'article doit avoir.
+
+        Returns:
+        str: Un message d'erreur si la catégorie n'est pas trouvée et un message de modification si l'opération a réussi
+
+        Raises:
+        - TypeError: Si l'objet `article` passé n'est pas une instance de la classe Article.
+        - ObjectDoesNotExist: Si la catégorie avec le label spécifié n'existe pas.
+        """
+        if not isinstance(article, Article):
+            raise TypeError(
+                "L'objet fourni n'est pas une instance de la classe Article.")
+
+        try:
+            label_cat = Category.objects.get(label=label_categorie)
+            article.cat = label_cat
+            article.save()
+            return f"{article.label} est à présent intégré dans la catégorie {label_categorie}"
+        except ObjectDoesNotExist:
+            return f"La catégorie {label_categorie} n'existe pas."
 
 
 class Category(models.Model):
+    """
+    Représente une catégorie d'articles dans une boutique en ligne.
+
+    Attributs:
+        label (CharField): Le nom unique de la catégorie.
+        admin (ForeignKey): L'administrateur qui a créé la catégorie.
+
+    Méthodes:
+        lister_categories(): Liste toutes les catégories.
+        lister_articles_categorie(label_categorie): Liste tous les articles 
+        appartenant à une catégorie donnée.
+    """
     label = models.CharField(max_length=100, unique=True)
     admin = models.ForeignKey(
         "Administrator", null=True, on_delete=models.SET_NULL)
 
+    @staticmethod
+    def lister_categories():
+        """
+        Liste toutes les catégories enregistrées dans la base de données.
+
+        Returns:
+            QuerySet: Un queryset contenant toutes les catégories.
+        """
+        return Category.objects.all()
+
+    def lister_articles_categorie(label_categorie):
+        """
+        Liste tous les articles qui appartiennent à une catégorie donnée.
+
+        Parameters:
+            label_categorie (str): Le label de la catégorie dont on souhaite 
+            lister les articles.
+
+        Returns:
+            QuerySet ou str: Un queryset contenant les articles de la catégorie, 
+            ou un message d'erreur si la catégorie n'est pas trouvée.
+        """
+        try:
+            categorie = Category.objects.get(label=label_categorie)
+            articles = Article.objects.filter(cat=categorie)
+            return articles
+        except ObjectDoesNotExist:
+            return f"Aucune catégorie trouvée avec le label {label_categorie}."
+
 
 class Article(models.Model):
+    """
+    Représente un article dans une boutique en ligne.
+
+    Attributs:
+        label (CharField): Le nom de l'article, ne peut pas être vide ou null.
+        description (TextField): Une description textuelle de l'article, peut être vide.
+        price (DecimalField): Le prix de l'article, ne peut pas être vide ou null.
+        image (ImageField): Une image représentant l'article, peut être vide ou null.
+        admin (ForeignKey): L'administrateur qui a créé ou modifié l'article, peut être null.
+        cat (ForeignKey): La catégorie à laquelle appartient l'article, peut être null.
+
+    Notes:
+        Les attributs 'admin' et 'cat' sont des clés étrangères. 
+        Ils sont définis comme pouvant être null, ce qui signifie que l'article peut exister 
+        sans administrateur ou catégorie associée.
+    """
     label = models.CharField(max_length=100, blank=False, null=False)
     description = models.TextField(blank=True, default="")
     price = models.DecimalField(
@@ -197,13 +306,8 @@ class Article(models.Model):
         "Administrator", null=True, on_delete=models.SET_NULL)
     cat = models.ForeignKey("Category", null=True, on_delete=models.SET_NULL)
 
-    def modifier_categorie(self, label_categorie):
-        try:
-            label_categorie = Category.objects.get(label=label_categorie)
-            self.cat = label_categorie
-            self.save()
-        except ObjectDoesNotExist:
-            return f"La catégorie {label_categorie} n'existe pas."
+    def retourner_prix(self):
+        pass
 
 
 class Promotion(models.Model):
