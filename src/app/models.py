@@ -46,7 +46,7 @@ class Administrator(models.Model):
         )
         new_article.save()
 
-        return f"L'article {label} au prix de {price} appartenant à la categorie {category} a été créé"
+        return f"L'article {label} au prix de {price} €TTC appartenant à la categorie {category.label} a été créé"
 
     def supprimer_article(self, article_id):
         """
@@ -97,7 +97,6 @@ class Administrator(models.Model):
         for key, value in kwargs.items():
             if hasattr(article, key):
                 setattr(article, key, value)
-                print(f"{key} : {value}")
                 modificiations_effectuees = True
 
             else:
@@ -106,7 +105,8 @@ class Administrator(models.Model):
             if modificiations_effectuees:
                 setattr(article, "admin", self)
                 article.save()
-                return f"La modificiation de l'article {article} a été effectuée avec succès"
+                modificiations_effectuees = False
+        return f"La modificiation de l'article {article} a été effectuée avec succès"
 
     def creer_categorie(self, label):
         """
@@ -130,7 +130,7 @@ class Administrator(models.Model):
 
         try:
             existing_category = Category.objects.get(label=label)
-            return f"La catégorie {existing_category} est déjà présente dans la base de données"
+            return f"La catégorie {existing_category.label} est déjà présente dans la base de données"
         except ObjectDoesNotExist:
             pass  # continuez le code si la catégorie n'existe pas
 
@@ -234,15 +234,36 @@ class Administrator(models.Model):
             return f"La catégorie {label_categorie} n'existe pas."
 
     def mettre_article_promotion(self, article, valeur_promo, start_date, end_date):
+        """
+        Applique une promotion à un article donné pour une période de temps spécifiée.
+
+        Cette méthode crée une nouvelle instance de la classe `Promotion` associée à un article donné,
+        et enregistre cette instance dans la base de données.
+
+        Parameters:
+        - article (Article): L'instance de l'Article sur lequel appliquer la promotion.
+        - valeur_promo (int): La valeur de la réduction en pourcentage (doit être entre 0 et 80).
+        - start_date (datetime.date): La date de début de la promotion.
+        - end_date (datetime.date): La date de fin de la promotion.
+
+        Returns:
+        None: Si la promotion est créée avec succès, aucune valeur n'est retournée.
+
+        Raises:
+        - TypeError: Si l'objet `article` passé n'est pas une instance de la classe Article.
+        - ValueError: Si la valeur de la promotion n'est pas entre 0 et 80.
+        - ObjectDoesNotExist: Si la création de la promotion échoue pour une raison quelconque (gérée silencieusement).
+        """
+        # Vérification préalable
         if not isinstance(article, Article):
             raise TypeError(
                 "L'objet fourni n'est pas une instance de la classe Article.")
 
+        # Vérification de la plage
         if not (0 < valeur_promo < 80):
-            return f"La valeur de la promotion doit être comprise entre 0 et 80%"
+            raise ValueError(
+                "La valeur de la promotion doit être comprise entre 0 et 80%")
         try:
-            promotions = Promotion.objects.all()
-
             if article.promotion_valide(start_date, end_date):
 
                 # Création de l'objet Article
@@ -254,11 +275,27 @@ class Administrator(models.Model):
                     admin=self,  # L'administrateur qui crée l'article
                 )
                 new_promotion.save()
+                return f"La promotion a été créée sur l'article {article.label} et débutera le {start_date} et prendra fin le {end_date}"
         except ObjectDoesNotExist:
-            pass
+            raise ObjectDoesNotExist(f"L'objet n'existe pas.")
 
     @staticmethod
     def supprimer_promotion(promotion_id):
+        """
+        Supprime une promotion existante à partir de son identifiant (ID).
+
+        Cette méthode cherche une instance de la classe `Promotion` avec un identifiant donné
+        et la supprime de la base de données si elle existe.
+
+        Parameters:
+        - promotion_id (int or str): L'identifiant unique de la promotion à supprimer.
+
+        Returns:
+        str: Un message indiquant si la suppression a réussi ou échoué.
+
+        Raises:
+        - ObjectDoesNotExist: Si aucune promotion n'est trouvée avec l'ID donné (géré silencieusement).
+        """
         try:
             promotion = Promotion.objects.get(id=promotion_id)
             promotion.delete()
@@ -267,6 +304,20 @@ class Administrator(models.Model):
             return f"Aucune promotion n'a été trouvée avec l'ID {promotion_id}."
 
     def purger_promotion(self):
+        """
+        Supprime toutes les promotions expirées de la base de données.
+
+        Cette méthode parcourt toutes les instances de la classe `Promotion` et supprime celles dont la `end_date` est antérieure à la date du jour.
+
+        Parameters:
+        Aucun
+
+        Returns:
+        None: La méthode ne renvoie rien, mais supprime les promotions expirées de la base de données.
+
+        Raises:
+        ObjectDoesNotExist: Une exception est levée si l'objet promotion n'est pas trouvé, mais est gérée silencieusement dans la méthode.
+        """
         date_du_jour = date.today()
         try:
             promotions = Promotion.objects.all()
@@ -276,7 +327,8 @@ class Administrator(models.Model):
                     promotion.delete()
 
         except ObjectDoesNotExist:
-            pass
+            raise ObjectDoesNotExist(
+                f"Aucune promotion n'a été trouvée pour être purgée.")
 
 
 class Category(models.Model):

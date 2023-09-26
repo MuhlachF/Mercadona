@@ -1,5 +1,6 @@
 # Import des modèles
 from app.models import Administrator, Article, Category, Promotion
+from datetime import date, datetime
 
 # récupérer le user
 admin = Administrator.objects.get(id = 1)
@@ -7,19 +8,22 @@ admin = Administrator.objects.get(id = 1)
 # récupérer le produit
 prod = Article.objects.get(id = 1)
 
+# modifier le produit
+admin.modifier_article(price=99, label = "Informatique")
+
 # récupérer une catégorie
-cate = Category.objects.get(label = "merde")
+cate = Category.objects.get(label = "Informatique")
 
 # création d'un user
 bob = Administrator.objects.create(name="Bob", last_name="Eponge", pseudo="Boby", email="bob@gmail.com", password="bob")
 
 # création d'une catégorie
-Category.objects.create(label = 'merde')
+Category.objects.create(label = 'Informatique')
 
 # création d'un produit
-cat_merde = Category.objects.get(label = 'merde')
+cat_ = Category.objects.get(label = 'Informatique')
 user_admin = Administrator.objects.get(id = 3)
-user_admin.creer_article(label = "merde", price = 5.02, category = cat_merde)
+user_admin.creer_article(label = "merde", price = 5.02, category = cat_)
 
 # mettre un produit en promotion
 date_start = date(2021, 1, 1)
