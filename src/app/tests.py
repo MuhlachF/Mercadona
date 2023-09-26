@@ -1,9 +1,7 @@
-from app.models import Administrator, Category
-from django.core.exceptions import ObjectDoesNotExist
 from django.test import TestCase
 from django.core.exceptions import ObjectDoesNotExist, FieldError
 from app.models import Administrator, Article, Category, Promotion
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 
 class AdministratorCreerArticleTestCase(TestCase):
@@ -267,4 +265,8 @@ class AdministratorMettreArticlePromotionTestCase(TestCase):
         with self.assertRaises(ObjectDoesNotExist):
             # Simulez une erreur ici, par exemple, en passant des dates invalides ou en manipulant la base de données
             self.admin.mettre_article_promotion(
-                self.article, 20, datetime.now().date(), datetime.now().date())
+                self.article, 20, date(2000, 1, 1), date(2000, 1, 1))
+
+# test - 1 : vérifier que la suppression réussit lorsque l'ID de promotion existe.
+# test - 2 : vérifier que la bonne exception est levée ou le bon message est renvoyé lorsque l'ID de promotion n'existe pas.
+# test - 3 : vérifier que la base de données est mise à jour correctement (i.e., la promotion est effectivement supprimée).

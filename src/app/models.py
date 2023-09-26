@@ -1,6 +1,6 @@
 from django.db import models
 from django.core.exceptions import ObjectDoesNotExist, FieldError
-from datetime import date, datetime
+from datetime import datetime, date
 
 # Create your models here.
 
@@ -224,6 +224,7 @@ class Administrator(models.Model):
         if not isinstance(article, Article):
             raise TypeError(
                 "L'objet fourni n'est pas une instance de la classe Article.")
+            return
 
         try:
             label_cat = Category.objects.get(label=label_categorie)
@@ -255,10 +256,15 @@ class Administrator(models.Model):
         - ObjectDoesNotExist: Si la création de la promotion échoue pour une raison quelconque (gérée silencieusement).
         """
         # Vérification préalable
+
         if not isinstance(article, Article):
             raise TypeError(
                 "L'objet fourni n'est pas une instance de la classe Article.")
 
+        # Vérification de la validité des dates
+        if start_date < datetime.now().date() or end_date < datetime.now().date():
+            raise ObjectDoesNotExist(
+                "La date de début ou de fin est dans le passé.")
         # Vérification de la plage
         if not (0 < valeur_promo < 80):
             raise ValueError(
