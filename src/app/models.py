@@ -1,5 +1,6 @@
 from django.db import models
 from django.core.exceptions import ObjectDoesNotExist, FieldError
+from datetime import date, datetime
 
 # Create your models here.
 
@@ -232,6 +233,51 @@ class Administrator(models.Model):
         except ObjectDoesNotExist:
             return f"La catégorie {label_categorie} n'existe pas."
 
+    def mettre_article_promotion(self, article, valeur_promo, start_date, end_date):
+        if not isinstance(article, Article):
+            raise TypeError(
+                "L'objet fourni n'est pas une instance de la classe Article.")
+
+        if not (0 < valeur_promo < 80):
+            return f"La valeur de la promotion doit être comprise entre 0 et 80%"
+        try:
+            promotions = Promotion.objects.all()
+
+            if article.promotion_valide(start_date, end_date):
+
+                # Création de l'objet Article
+                new_promotion = Promotion(
+                    article=article,
+                    percent=valeur_promo,
+                    start_date=start_date,
+                    end_date=end_date,
+                    admin=self,  # L'administrateur qui crée l'article
+                )
+                new_promotion.save()
+        except ObjectDoesNotExist:
+            pass
+
+    @staticmethod
+    def supprimer_promotion(promotion_id):
+        try:
+            promotion = Promotion.objects.get(id=promotion_id)
+            promotion.delete()
+            return f"la promotion avec l'ID {promotion_id} a été supprimé."
+        except ObjectDoesNotExist:
+            return f"Aucune promotion n'a été trouvée avec l'ID {promotion_id}."
+
+    def purger_promotion(self):
+        date_du_jour = date.today()
+        try:
+            promotions = Promotion.objects.all()
+            # Recherche des promotions expirées
+            for promotion in promotions:
+                if date_du_jour > promotion.end_date:
+                    promotion.delete()
+
+        except ObjectDoesNotExist:
+            pass
+
 
 class Category(models.Model):
     """
@@ -308,6 +354,58 @@ class Article(models.Model):
 
     def retourner_prix(self):
         pass
+
+    def promotion_en_cours(self):
+        """
+        Détermine si l'article est actuellement en promotion.
+
+        Cette méthode vérifie si l'article est lié à une promotion active. 
+        Pour cet exemple, nous supposons qu'une promotion est "active" si elle 
+        est présente dans la base de données.
+
+        Returns:
+            bool: True si en promotion, False sinon.
+        """
+        date_du_jour = date.today()
+        articles_promotion = Promotion.objects.filter(article=self)
+        for promotion in articles_promotion:
+            if promotion.start_date <= date_du_jour <= promotion.end_date:
+                return promotion.percent
+        return False
+
+    def promotion_valide(self, strt_date, ed_date):
+        """
+        Vérifie la validité d'une période de promotion pour un article donné.
+
+        Cette méthode vérifie si une nouvelle promotion peut être ajoutée en s'assurant 
+        qu'aucun chevauchement de dates ne se produit avec les promotions existantes pour cet article.
+        Elle vérifie également que la date de début est antérieure à la date de fin et que la date de fin
+        est postérieure à la date du jour.
+
+        Parameters:
+        - strt_date (date): La date de début de la nouvelle promotion
+        - ed_date (date): La date de fin de la nouvelle promotion
+
+        Returns:
+        bool: True si la période de la promotion est valide, sinon False.
+        """
+        date_du_jour = date.today()
+        # Vérifie que la date de début est antérieure à la date de fin
+        if strt_date > ed_date:
+            return False
+
+        # Vérifie si la date de fin est valide
+        if date_du_jour > ed_date:
+            return False
+
+        # Recherche toutes les promotions associées à cet article
+        articles_promotion = Promotion.objects.filter(article=self)
+        if articles_promotion.exists():
+            for promotion in articles_promotion:
+                # Vérifie le chevauchement de dates
+                if strt_date <= promotion.end_date and ed_date >= promotion.start_date:
+                    return False
+        return True
 
 
 class Promotion(models.Model):
