@@ -21,7 +21,13 @@ class Category(models.Model):
         lister_articles_categorie(label_categorie): Liste tous les articles 
             appartenant à une catégorie donnée.
     """
-    label = models.CharField(max_length=100, unique=True)
+    label = models.CharField(
+        max_length=100, unique=True, verbose_name='Catégorie')
+
+    # Permet de spécifier le tri d'affichage des catégories sur la vue Admin
+    class Meta:
+        ordering = ['label']
+        verbose_name = 'Catégorie'
 
     def modifier_label_categorie(self, nouveau_label):
         """
@@ -48,6 +54,9 @@ class Category(models.Model):
         self.save()
 
         return f"Le nouveau label {nouveau_label} a été appliqué à la catégorie"
+
+    def __str__(self):
+        return self.label
 
     @classmethod
     def lister_categories(cls):
@@ -100,15 +109,22 @@ class Article(models.Model):
         mettre_article_promotion(valeur_promo, start_date, end_date): Applique une promotion à l'article.
         retourner_prix(): Retourne le prix actuel de l'article, en tenant compte des promotions éventuelles.
     """
-    label = models.CharField(max_length=100, blank=False, null=False)
-    description = models.TextField(blank=True, default="")
+    label = models.CharField(max_length=100, blank=False,
+                             null=False, verbose_name='Article')
+    description = models.TextField(
+        blank=True, default="", verbose_name='Description')
     price = models.DecimalField(
-        max_digits=6, decimal_places=2, blank=False, null=False)
-    image = models.ImageField(blank=True, null=True)
+        max_digits=6, decimal_places=2, blank=False, null=False, verbose_name='Prix')
+    image = models.ImageField(blank=True, null=True, verbose_name='Image')
     admin = models.ForeignKey(
-        User, null=True, on_delete=models.SET_NULL)
+        User, null=True, on_delete=models.SET_NULL, verbose_name='Créateur')
     category = models.ForeignKey(
-        "Category", null=True, on_delete=models.SET_NULL)
+        "Category", null=True, on_delete=models.SET_NULL, verbose_name='Catégorie')
+
+    # Permet de spécifier le tri d'affichage des articles sur la vue Admin
+    class Meta:
+        ordering = ['label']
+        verbose_name = 'Article'
 
     def promotion_en_cours(self):
         """
@@ -236,7 +252,7 @@ class Article(models.Model):
             raise ValueError(
                 "La date de début ou de fin est dans le passé.")
         # Vérification de la plage
-        if not (0 < valeur_promo < 80):
+        if not (0 < valeur_promo < 50):
             raise ValueError(
                 "La valeur de la promotion ne peut pas dépassée 80%")
         try:
@@ -268,14 +284,20 @@ class Article(models.Model):
             return prix.quantize(Decimal('0.00'), rounding=ROUND_HALF_UP)
 
         else:
-            return self.price
+            # return self.price.quantize(Decimal('0.00'), rounding=ROUND_HALF_UP)
+            return "Aucune en cours"
+
+    def __str__(self):
+        return self.label
 
 
 class Promotion(models.Model):
-    start_date = models.DateField()
-    end_date = models.DateField()
-    percent = models.DecimalField(max_digits=6, decimal_places=2)
-    article = models.ForeignKey("Article", on_delete=models.CASCADE)
+    start_date = models.DateField(verbose_name='Date début de promotion')
+    end_date = models.DateField(verbose_name='Date de fin de promotion')
+    percent = models.DecimalField(
+        max_digits=6, decimal_places=2, verbose_name="Pourcentage de remise")
+    article = models.ForeignKey(
+        "Article", on_delete=models.CASCADE, verbose_name='Article')
 
     def purger_promotion(self):
         """

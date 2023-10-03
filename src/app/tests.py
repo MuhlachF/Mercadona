@@ -216,8 +216,7 @@ class TestModeleArticle(TestCase):
 
         # Véricication du prix d'un article qui n'est pas en promotion
     def test_tester_prix_article_hors_promotion(self):
-        self.assertEqual(self.article_3.retourner_prix(), Decimal(
-            2600).quantize(Decimal('0.00'), rounding=ROUND_HALF_UP))
+        self.assertEqual(self.article_3.retourner_prix(), 'Aucune en cours')
 
 
 class TestModelePromotion(TestCase):
