@@ -1,8 +1,8 @@
 from .models import Article, Category, User
 from django.test import TestCase, Client
-from django.core.exceptions import ObjectDoesNotExist, FieldError
+from django.core.exceptions import ObjectDoesNotExist, FieldError, ValidationError
 from app.models import Article, Category, Promotion
-from datetime import date, datetime, timedelta
+from datetime import date
 from django.contrib.auth import get_user_model
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -94,42 +94,23 @@ class TestModeleArticle(TestCase):
         self.article_3 = Article.objects.create(
             label='PC',
             description='Un PC très performant',
-            price=Decimal(2600),
+            price=Decimal(2600.59),
             category=self.categorie,
             admin=self.user  # Utilisation de l'utilisateur créé
         )
 
-        # Création de dates pour les tests
-        self.date_now = date(2023, 10, 3)
-        self.date_start_avant_now = date(2021, 1, 1)
-        self.date_start_valide = date(2024, 2, 1)
-        self.date_end_avant_start = date(2023, 12, 1)
-        self.date_end_avant_now = date(2023, 9, 1)
-        self.date_end_valide = date(2024, 3, 1)
-
-        self.date_start_promotion_1 = date(2023, 9, 1)
-        self.date_end_promotion_1 = date(2023, 12, 31)
-        self.date_start_recouvrement = date(2023, 10, 1)
-        self.date_end_recouvrement = date(2023, 10, 1)
-        self.date_start_promotion_OK = date(2024, 1, 1)
-        self.date_fin_promotion_OK = date(2024, 2, 1)
-
-        self.date_debut_promotion_valide = date(2023, 10, 1)
+        # Dates valides de promotion
+        self.date_debut_promotion_valide = date(2024, 1, 1)
         self.date_fin_promotion_valide = date(2024, 10, 1)
-        self.date_debut_promotion_depassee = date(2022, 10, 1)
-        self.date_fin_promotion_depassee = date(2022, 12, 31)
+        self.date_du_jour = date.today()
 
-        # Création de promotions
+        # Création d'une promotion hors période
         self.promotion_1 = Promotion.objects.create(
-            start_date=self.date_start_promotion_1, end_date=self.date_end_promotion_1, percent=40, article=self.article)
-
-        # Création d'une promotion valide pour l'article 2
-        self.promotion_2 = Promotion.objects.create(
             start_date=self.date_debut_promotion_valide, end_date=self.date_fin_promotion_valide, percent=40, article=self.article_2)
 
-        # Création d'une promotion non valide pour l'article 3
-        self.promotion_3 = Promotion.objects.create(
-            start_date=self.date_debut_promotion_depassee, end_date=self.date_fin_promotion_depassee, percent=40, article=self.article_3)
+        # Création d'une promotion en cours
+        self.promotion_2 = Promotion.objects.create(
+            start_date=self.date_du_jour, end_date=self.date_fin_promotion_valide, percent=40, article=self.article_3)
 
     def test_creer_article(self):
         # Test de la création d'un nouvel article
@@ -169,78 +150,119 @@ class TestModeleArticle(TestCase):
         message = self.article.modifier_categorie_article('Inexistant')
         self.assertEqual(message, 'La catégorie Inexistant n\'existe pas.')
 
-    def test_promotion_est_valide_date_invalide(self):
-        # Test pour vérifier le retour de la fonction pour une date de fin antérieure à la date de début
-        message = self.article.promotion_est_valide(
-            self.date_start_valide, self.date_end_avant_start)
-        self.assertEqual(message, False)
-
-    def test_promotion_est_valide_date_invalide_2(self):
-        # Test pour vérifier le retour de la fonction pour une date de fin de fin antérieure à la date actuelle
-        message = self.article.promotion_est_valide(
-            self.date_start_avant_now, self.date_end_avant_now)
-        self.assertEqual(message, False)
-
-    def test_promotion_est_valide_promotion_existante(self):
-        # Test pour vérifier le retour de la fonction pour une promotion renseignée sur la période de la promotion existante
-        message = self.article.promotion_est_valide(
-            self.date_start_recouvrement, self.date_end_recouvrement)
-        self.assertEqual(message, False)
-
-    def test_promotion_est_valide_promotion_existante_date_debut_uniquement(self):
-        # Test pour vérifier le retour de la fonction pour une promotion renseignée sur la période de la promotion existante
-        message = self.article.promotion_est_valide(
-            self.date_start_recouvrement, self.date_fin_promotion_OK)
-        self.assertEqual(message, False)
-
-    def test_promotion_est_valide_promotion_valide(self):
-        # Test pour vérifier le retour de la fonction pour une promotion renseignée sur la période de la promotion existante
-        message = self.article.promotion_est_valide(
-            self.date_start_promotion_OK, self.date_fin_promotion_OK)
-        self.assertEqual(message, True)
-
-    # Véricication de la validité de la période de promotion
-    def test_tester_validation_promotion_2(self):
+    def test_verifier_promotion_hors_periode_article(self):
+        # test portant sur l'état d'une promotion non définie
         message = self.article_2.promotion_en_cours()
-        self.assertEqual(message, 40)
+        self.assertEqual(message, Decimal(0))
 
-    # Véricication de la non validité de la période de promotion
-    def test_tester_validation_promotion_3(self):
+    def test_verifier_promotion_non_renseignee_article(self):
+        # test portant sur l'état d'une promotion valide
+        message = self.article.promotion_en_cours()
+        self.assertEqual(message, Decimal(0))
+
+    def test_verifier_promotion_en_cours_article(self):
+        # test portant sur l'état d'une promotion valide
         message = self.article_3.promotion_en_cours()
-        self.assertEqual(message, 0)
+        self.assertEqual(message, Decimal(40.00))
 
-    # Véricication du prix d'un article en promotion
-    def test_tester_prix_article_promotion(self):
-        self.assertEqual(self.article_2.retourner_prix(), Decimal(
-            1560.47).quantize(Decimal('0.00'), rounding=ROUND_HALF_UP))
+    def test_recuperation_prix_article_en_promotion(self):
+        # test portant sur la récupération d'un prix d'un article en promotion
+        message = self.article_3.retourner_prix()
+        self.assertEqual(message, Decimal(1560.35).quantize(
+            Decimal('0.00'), rounding=ROUND_HALF_UP))
 
-        # Véricication du prix d'un article qui n'est pas en promotion
-    def test_tester_prix_article_hors_promotion(self):
-        self.assertEqual(self.article_3.retourner_prix(), 'Aucune en cours')
+    def test_recuperation_prix_article_hors_promotion(self):
+        # test portant sur la récupération d'un prix d'un article hors promotion
+        message = self.article_2.retourner_prix()
+        self.assertEqual(message, 'Aucune en cours')
 
 
 class TestModelePromotion(TestCase):
 
     def setUp(self):
-        # Création des dates
-        self.date_start_promotion = date(2024, 1, 1)
-        self.date_fin_promotion = date(2024, 2, 1)
+        # Dates valides de promotion
+        self.date_debut_promotion_valide = date(2024, 1, 1)
+        self.date_fin_promotion_valide = date(2024, 10, 1)
+        self.date_du_jour = date.today()
+
+        # Dates valides de promotion - série 2 - recouvrement de plage
+        self.date_fin_promotion_valide_recouvrement = date(2024, 5, 1)
+
+        # Dates non valides de promotion - date fin < date du jour
+        self.date_debut_promotion_non_valide = date(2022, 1, 1)
+        self.date_fin_promotion_non_valide = date(2022, 10, 1)
+
+        # Dates non valides de promotion - inversion date de fin et date de début
+        self.date_debut_promotion_inversion = date(2022, 10, 1)
+        self.date_fin_promotion_inversion = date(2022, 1, 1)
 
         # Création d'une catégorie
         self.categorie = Category.objects.create(label='Electronique')
 
-        # Création d'un article
+        # Création de 4 articles
         self.article = Article.objects.create(
             label='Ordinateur',
             description='Un ordinateur puissant',
             price=999.99,
             category=self.categorie
         )
+        self.article_2 = Article.objects.create(
+            label='Console',
+            description='Une console incroyable',
+            price=458.54,
+            category=self.categorie
+        )
 
-    def test_creer_promotion(self):
-        # Test de la création d'une nouvelle promotion
-        promotion = Promotion.objects.create(
-            start_date=self.date_start_promotion, end_date=self.date_fin_promotion, percent=40, article=self.article)
+        self.article_3 = Article.objects.create(
+            label='Raspberry',
+            description='Un petit ordi',
+            price=258.50,
+            category=self.categorie
+        )
 
-        self.assertEqual(Promotion.objects.count(), 1)
-        self.assertEqual(promotion.start_date, self.date_start_promotion)
+        self.article_4 = Article.objects.create(
+            label='Arduino',
+            description='Un micro controleur',
+            price=28.50,
+            category=self.categorie
+        )
+
+    def test_dates_non_valides_anterieures(self):
+        # Test Création d'une promotion non valide - plage antérieure à la date du jour
+        with self.assertRaises(ValidationError):
+            self.promotion_1 = Promotion.objects.create(
+                start_date=self.date_debut_promotion_non_valide, end_date=self.date_fin_promotion_non_valide, percent=40, article=self.article)
+
+    def test_dates_non_valides_inversion(self):
+        # Test Création d'une promotion non valide - date fin est antérieure à la date de début
+        with self.assertRaises(ValidationError):
+            self.promotion_1 = Promotion.objects.create(
+                start_date=self.date_debut_promotion_inversion, end_date=self.date_fin_promotion_inversion, percent=40, article=self.article)
+
+    def test_dates_non_valides_promotion_inferieure(self):
+        # Test Création d'une promotion non valide - valeur promotion < 0
+        with self.assertRaises(ValidationError):
+            self.promotion_1 = Promotion.objects.create(
+                start_date=self.date_debut_promotion_valide, end_date=self.date_fin_promotion_valide, percent=-5, article=self.article)
+
+    def test_dates_non_valides_promotion_superieure_50(self):
+        # Test Création d'une promotion non valide - valeur promotion < 0
+        with self.assertRaises(ValidationError):
+            self.promotion_1 = Promotion.objects.create(
+                start_date=self.date_debut_promotion_valide, end_date=self.date_fin_promotion_valide, percent=55, article=self.article)
+
+    def test_dates_valides_promotion_(self):
+        # Test Création d'une promotion en cours et valide
+        self.promotion_2 = Promotion.objects.create(
+            start_date=self.date_du_jour, end_date=self.date_fin_promotion_valide, percent=25, article=self.article_2)
+        message = self.article_2.promotion_en_cours()
+        self.assertEqual(message, Decimal(25.00))
+
+    def test_dates_valides_recouvrement_promotion_(self):
+        # Test Création d'une promotion valide mais sur une promotion existante en cours et valide
+        self.promotion_3 = Promotion.objects.create(
+            start_date=self.date_du_jour, end_date=self.date_fin_promotion_valide, percent=25, article=self.article_2)
+
+        with self.assertRaises(ValidationError):
+            self.promotion_4 = Promotion.objects.create(
+                start_date=self.date_du_jour, end_date=self.date_fin_promotion_valide_recouvrement, percent=25, article=self.article_2)

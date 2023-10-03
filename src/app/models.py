@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User
 from django.db import models
-from django.core.exceptions import ObjectDoesNotExist, FieldError
+from django.core.exceptions import ObjectDoesNotExist, FieldError, ValidationError
 from datetime import datetime, date
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -133,6 +133,7 @@ class Article(models.Model):
         Returns:
             Decimal: La valeur en % si en promotion, 0 sinon.
         """
+
         date_du_jour = date.today()
         articles_promotion = Promotion.objects.filter(article=self)
         for promotion in articles_promotion:
@@ -194,82 +195,6 @@ class Article(models.Model):
         except ObjectDoesNotExist:
             return f"La catégorie {label_categorie} n'existe pas."
 
-    def promotion_est_valide(self, strt_date, ed_date):
-        """
-        Vérifie la validité d'une période de promotion pour un article donné.
-
-        Cette méthode vérifie si une nouvelle promotion peut être ajoutée en s'assurant 
-        qu'aucun chevauchement de dates ne se produit avec les promotions existantes pour cet article.
-        Elle vérifie également que la date de début est antérieure à la date de fin et que la date de fin
-        est postérieure à la date du jour.
-
-        Parameters:
-        - strt_date (date): La date de début de la nouvelle promotion.
-        - ed_date (date): La date de fin de la nouvelle promotion.
-
-        Returns:
-        bool: True si la période de la promotion est valide, sinon False.
-        """
-        date_du_jour = date.today()
-        # Vérifie que la date de début est antérieure à la date de fin
-        if strt_date > ed_date:
-            return False
-
-        # Vérifie si la date de fin est valide
-        if date_du_jour > ed_date:
-            return False
-
-        # Recherche toutes les promotions associées à cet article
-        articles_promotion = Promotion.objects.filter(article=self)
-        if articles_promotion.exists():
-            for promotion in articles_promotion:
-                # Vérifie le chevauchement de dates
-                if strt_date <= promotion.end_date and ed_date >= promotion.start_date:
-                    return False
-        return True
-
-    def mettre_article_promotion(self, valeur_promo, start_date, end_date):
-        """
-        Applique une promotion à un article donné pour une période de temps spécifiée.
-
-        Cette méthode crée une nouvelle instance de la classe `Promotion` associée à cet article,
-        et enregistre cette instance dans la base de données.
-
-        Parameters:
-        - valeur_promo (int): La valeur de la réduction en pourcentage (doit être entre 0 et 80).
-        - start_date (datetime.date): La date de début de la promotion.
-        - end_date (datetime.date): La date de fin de la promotion.
-
-        Returns:
-        str: Un message indiquant si la promotion a été créée avec succès ou non.
-
-        Raises:
-        - ValueError: Si la valeur de la promotion n'est pas entre 0 et 80 ou si les dates sont invalides.
-        - ObjectDoesNotExist: Si la création de la promotion échoue pour une raison quelconque.
-        """
-        # Vérification de la validité des dates
-        if start_date < datetime.now().date() or end_date < datetime.now().date():
-            raise ValueError(
-                "La date de début ou de fin est dans le passé.")
-        # Vérification de la plage
-        if not (0 < valeur_promo < 50):
-            raise ValueError(
-                "La valeur de la promotion ne peut pas dépassée 80%")
-        try:
-            if self.promotion_est_valide(start_date, end_date):
-
-                # Création de l'objet Article
-                new_promotion = Promotion(
-                    article=self,
-                    percent=valeur_promo,
-                    start_date=start_date,
-                    end_date=end_date,
-                )
-                new_promotion.save()
-                return f"La promotion a été créée sur l'article {self.label} et débutera le {start_date} et prendra fin le {end_date}"
-        except ObjectDoesNotExist:
-            raise ObjectDoesNotExist(f"L'objet n'existe pas.")
-
     def retourner_prix(self):
         """
         Retourne le prix actuel de l'article, en tenant compte des promotions éventuelles.
@@ -287,6 +212,18 @@ class Article(models.Model):
             # return self.price.quantize(Decimal('0.00'), rounding=ROUND_HALF_UP)
             return "Aucune en cours"
 
+    def clean(self):
+        if self.price <= 0:
+            raise ValidationError(
+                "Le prix ne peut pas être inférieur à 0€")
+        return True
+
+    def save(self, *args, **kwargs):
+        # Appeler la méthode de validation de la promotion avant de sauvegarder
+        self.clean()
+        # Appeler la méthode 'save' originale
+        super(Article, self).save(*args, **kwargs)
+
     def __str__(self):
         return self.label
 
@@ -297,9 +234,65 @@ class Promotion(models.Model):
     percent = models.DecimalField(
         max_digits=6, decimal_places=2, verbose_name="Pourcentage de remise")
     article = models.ForeignKey(
-        "Article", on_delete=models.CASCADE, verbose_name='Article')
+        "Article", null=True, on_delete=models.CASCADE, verbose_name='Article')
 
-    def purger_promotion(self):
+    def clean(self):
+        """
+        Vérifie la validité d'une période de promotion pour un article donné.
+
+        Cette méthode vérifie si une nouvelle promotion peut être ajoutée en s'assurant 
+        qu'aucun chevauchement de dates ne se produit avec les promotions existantes pour cet article.
+        Elle vérifie également que la date de début est antérieure à la date de fin et que la date de fin
+        est postérieure à la date du jour.
+
+        Parameters:
+        - strt_date (date): La date de début de la nouvelle promotion.
+        - ed_date (date): La date de fin de la nouvelle promotion.
+
+        Returns:
+        bool: True si la période de la promotion est valide, sinon False.
+        """
+
+        # Vérifie que la date de début est antérieure à la date de fin
+        if self.start_date > self.end_date:
+            raise ValidationError(
+                "La date de fin est antérieure à la date de fin.")
+
+        # Vérification de la validité des dates
+        if self.start_date < datetime.now().date() or self.end_date < datetime.now().date():
+            raise ValidationError(
+                "La date de début ou de fin est déjà échue.")
+
+        # Vérification du champ pourcentage est-il bien renseigné
+        if self.percent:
+            # Vérification de la plage
+            if not (0 < self.percent < 50):
+                raise ValidationError(
+                    "La valeur de la promotion ne peut pas dépasser 50%")
+        else:
+            raise ValidationError(
+                "Veuillez renseigner un pourcentage dans le champs"
+            )
+        if self.article is None:
+            raise ValidationError(
+                "Veuillez sélectionner un article dans la liste")
+
+        articles_promotion = Promotion.objects.filter(article=self.article)
+        if articles_promotion.exists():
+            for promotion in articles_promotion:
+                # Vérifie le chevauchement de dates
+                if self.start_date <= promotion.end_date and self.end_date >= promotion.start_date:
+                    raise ValidationError(
+                        "Une promotion est déjà appliquée sur cette plage")
+
+    def save(self, *args, **kwargs):
+        # Appeler la méthode de validation de la promotion avant de sauvegarder
+        self.clean()
+        # Appeler la méthode 'save' originale
+        super(Promotion, self).save(*args, **kwargs)
+
+    @classmethod
+    def purger_promotion(cls):
         """
         Supprime toutes les promotions expirées de la base de données.
 
@@ -316,7 +309,7 @@ class Promotion(models.Model):
         """
         date_du_jour = date.today()
         try:
-            promotions = self.objects.all()
+            promotions = cls.objects.all()
             # Recherche des promotions expirées
             for promotion in promotions:
                 if date_du_jour > promotion.end_date:
