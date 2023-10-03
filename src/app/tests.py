@@ -1,272 +1,237 @@
-from django.test import TestCase
+from .models import Article, Category, User
+from django.test import TestCase, Client
 from django.core.exceptions import ObjectDoesNotExist, FieldError
-from app.models import Administrator, Article, Category, Promotion
+from app.models import Article, Category, Promotion
 from datetime import date, datetime, timedelta
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 
-class AdministratorCreerArticleTestCase(TestCase):
-    # Test - 1 : Tester la création d'un article avec toutes les informations nécessaires.
-    # Test - 2 : Tester la création d'un article sans prix.
-    # Test - 3 : Tester la création d'un article sans étiquette (label).
-    # Test - 4 : Tester la création d'un article avec des informations supplémentaires comme une image et une description.
+class TestModeleCategorie(TestCase):
 
     def setUp(self):
-        # Création de l'administrateur
-        self.admin = Administrator.objects.create(
-            name="Bob", last_name="Eponge", pseudo="Boby", email="bob@gmail.com", password="bob")
-        self.category = Category.objects.create(label="Mobilier")
+        # Création de deux catégories, de deux articles et d'un utilisateur pour les tests
+        self.categorie1 = Category.objects.create(label='Electronique')
+        self.categorie2 = Category.objects.create(label='Mode')
+        self.article1 = Article.objects.create(
+            label='Ordinateur', category=self.categorie1, price=5.10)
+        self.article2 = Article.objects.create(
+            label='Chemise', category=self.categorie2, price=8)
+        self.user = User.objects.create_user(
+            username='mercadona', password='123456')
 
-    def test_creer_article_complet(self):
-        result = self.admin.creer_article(
-            label="Chaise", price=50, description="Confortable", category=self.category)
+    def test_creer_categorie(self):
+        # Test de la création d'une nouvelle catégorie
+        categorie = Category.objects.create(label='Livres')
+        self.assertEqual(Category.objects.count(), 3)
+        self.assertEqual(categorie.label, 'Livres')
+
+    def test_modifier_label_categorie(self):
+        # Test de la modification du label d'une catégorie existante
+        self.categorie1.modifier_label_categorie('Electronique et Gadgets')
+        self.assertEqual(self.categorie1.label, 'Electronique et Gadgets')
+
+    def test_lister_categories(self):
+        # Test de la méthode qui liste toutes les catégories
+        categories = Category.lister_categories()
+        self.assertEqual(categories.count(), 2)
+        self.assertIn(self.categorie1, categories)
+        self.assertIn(self.categorie2, categories)
+
+    def test_lister_articles_par_categorie(self):
+        # Test de la méthode qui liste les articles d'une catégorie donnée
+        articles = Category.lister_articles_categorie(
+            label_categorie='Electronique')
+        self.assertEqual(articles.count(), 1)
+        self.assertIn(self.article1, articles)
+
+        articles = Category.lister_articles_categorie('Mode')
+        self.assertEqual(articles.count(), 1)
+        self.assertIn(self.article2, articles)
+
+    def test_lister_articles_par_categorie_inexistante(self):
+        # Test de la méthode qui liste les articles d'une catégorie inexistante
+        articles = Category.lister_articles_categorie('Inexistant')
         self.assertEqual(
-            result, "L'article Chaise au prix de 50 €TTC appartenant à la categorie Mobilier a été créé")
-
-        # Cérifier que l'article a été créé dans la base de données
-        self.assertTrue(Article.objects.filter(label="Chaise").exists())
-
-    def test_creer_article_sans_prix(self):
-        result = self.admin.creer_article(label="Chaise", price=None)
-        self.assertEqual(result, "Le prix ou l'étiquette n'est pas renseigné")
-
-    def test_creer_article_sans_label(self):
-        result = self.admin.creer_article(label=None, price=50)
-        self.assertEqual(result, "Le prix ou l'étiquette n'est pas renseigné")
-
-    def test_creer_article_supplementaire(self):
-        result = self.admin.creer_article(
-            label="Chaise", price=50, description="Confortable", image="chaise.jpg", category=self.category)
-        self.assertEqual(
-            result, "L'article Chaise au prix de 50 €TTC appartenant à la categorie Mobilier a été créé")
-
-        # Vérifier également que l'article a été créé dans la base de données avec les détails supplémentaires
-        article = Article.objects.get(label="Chaise")
-        self.assertEqual(article.description, "Confortable")
-        self.assertEqual(article.image, "chaise.jpg")
+            articles, "Aucune catégorie trouvée avec le label Inexistant.")
 
 
-class AdministratorSupprimerArticleTestCase(TestCase):
-    # Test - 1 : Un test qui vérifie que la méthode supprime un article existant et renvoie le bon message.
-    # Test - 2 : Un test qui vérifie que la méthode gère correctement le cas où l'article n'existe pas.
+class TestModeleArticle(TestCase):
+
     def setUp(self):
-        self.admin = Administrator.objects.create(
-            name="Bob", last_name="Eponge", pseudo="Boby", email="bob@gmail.com", password="bob"
+        # Création d'un client pour simuler un utilisateur
+        self.client = Client()
+
+        # Création d'un utilisateur pour les tests
+        self.user = User.objects.create_user(
+            username='mercadona',
+            password='123456'
         )
-        self.category = Category.objects.create(label="Mobilier")
+
+        # Simuler la connexion de l'utilisateur
+        self.client.login(username='testuser', password='testpass')
+
+        # Création d'une catégorie et de trois articles pour les tests
+        self.categorie = Category.objects.create(label='Electronique')
         self.article = Article.objects.create(
-            label="Chaise", price=50, cat=self.category
+            label='Smartphone',
+            description='Un smartphone très intelligent',
+            price=599.99,
+            category=self.categorie,
+            admin=self.user  # Utilisation de l'utilisateur créé
         )
 
-    def test_supprimer_article_existant(self):
-        article_id = self.article.id
-        result = self.admin.supprimer_article(article_id)
+        self.article_2 = Article.objects.create(
+            label='Smartphone',
+            description='Un smartphone très intelligent',
+            price=600,
+            category=self.categorie,
+            admin=self.user  # Utilisation de l'utilisateur créé
+        )
+
+        self.article_3 = Article.objects.create(
+            label='PC',
+            description='Un PC très performant',
+            price=2600,
+            category=self.categorie,
+            admin=self.user  # Utilisation de l'utilisateur créé
+        )
+
+        # Création de dates pour les tests
+        self.date_now = date(2023, 10, 3)
+        self.date_start_avant_now = date(2021, 1, 1)
+        self.date_start_valide = date(2024, 2, 1)
+        self.date_end_avant_start = date(2023, 12, 1)
+        self.date_end_avant_now = date(2023, 9, 1)
+        self.date_end_valide = date(2024, 3, 1)
+
+        self.date_start_promotion_1 = date(2023, 9, 1)
+        self.date_end_promotion_1 = date(2023, 12, 31)
+        self.date_start_recouvrement = date(2023, 10, 1)
+        self.date_end_recouvrement = date(2023, 10, 1)
+        self.date_start_promotion_OK = date(2024, 1, 1)
+        self.date_fin_promotion_OK = date(2024, 2, 1)
+
+        self.date_debut_promotion_valide = date(2023, 10, 1)
+        self.date_fin_promotion_valide = date(2024, 10, 1)
+        self.date_debut_promotion_depassee = date(2022, 10, 1)
+        self.date_fin_promotion_depassee = date(2022, 12, 31)
+
+        # Création de promotions
+        self.promotion_1 = Promotion.objects.create(
+            start_date=self.date_start_promotion_1, end_date=self.date_end_promotion_1, percent=40, article=self.article)
+
+        # Création d'une promotion valide pour l'article 2
+        self.promotion_2 = Promotion.objects.create(
+            start_date=self.date_debut_promotion_valide, end_date=self.date_fin_promotion_valide, percent=40, article=self.article_2)
+
+        # Création d'une promotion non valide pour l'article 3
+        self.promotion_3 = Promotion.objects.create(
+            start_date=self.date_debut_promotion_depassee, end_date=self.date_fin_promotion_depassee, percent=40, article=self.article_3)
+
+    def test_creer_article(self):
+        # Test de la création d'un nouvel article
+        article = Article.objects.create(
+            label='Ordinateur',
+            description='Un ordinateur puissant',
+            price=999.99,
+            category=self.categorie
+        )
+        self.assertEqual(Article.objects.count(), 4)
+        self.assertEqual(article.label, 'Ordinateur')
+
+    def test_modifier_article(self):
+        # Test de la modification d'un article existant
+        message = self.article.modifier_article(user=self.user,
+                                                label='Smartphone Pro', price=699.99)
         self.assertEqual(
-            result, f"Article avec l'ID {article_id} a été supprimé.")
+            message, 'La modificiation de l\'article Smartphone Pro a été effectuée avec succès')
+        self.assertEqual(self.article.label, 'Smartphone Pro')
+        self.assertEqual(self.article.price, 699.99)
 
-        # Vérifier que l'article n'existe plus dans la base de données
-        with self.assertRaises(ObjectDoesNotExist):
-            Article.objects.get(id=article_id)
-
-    def test_supprimer_article_inexistant(self):
-        article_id = 9999  # Un ID qui n'existe pas dans la base de données
-        result = self.admin.supprimer_article(article_id)
-        self.assertEqual(
-            result, f"Aucun article trouvé avec l'ID {article_id}.")
-
-        # Vérifier que l'article n'existe toujours pas dans la base de données
-        with self.assertRaises(ObjectDoesNotExist):
-            Article.objects.get(id=article_id)
-
-
-class AdministratorModifierArticleTestCase(TestCase):
-    # Test - 1 : Un test qui modifie avec succès un attribut d'un article existant.
-    # Test - 2 : Un test qui échoue lorsque l'objet fourni n'est pas une instance de Article.
-    # Test - 3 : Un test qui échoue lorsqu'un champ inconnu est fourni.
-    def setUp(self):
-        self.admin = Administrator.objects.create(
-            name="Bob", last_name="Eponge", pseudo="Boby", email="bob@gmail.com", password="bob")
-        self.category = Category.objects.create(label="Mobilier")
-        self.article = Article.objects.create(
-            label="Chaise", price=50, admin=self.admin, cat=self.category)
-
-    def test_modifier_article_avec_succes(self):
-        new_price = 55.0
-        new_label = "Nouvelle Chaise"
-        result = self.admin.modifier_article(
-            self.article, price=new_price, label=new_label)
-        self.article.refresh_from_db()  # Rafraîchir l'objet depuis la base de données
-        self.assertEqual(self.article.price, new_price)
-        self.assertEqual(self.article.label, new_label)
-        self.assertEqual(
-            result, f"La modificiation de l'article {self.article} a été effectuée avec succès")
-
-    def test_modifier_article_mauvais_type(self):
-        with self.assertRaises(TypeError):
-            self.admin.modifier_article(
-                "ceci_n_est_pas_un_article", price=55.0)
-
-    def test_modifier_article_champ_inconnu(self):
+    def test_modifier_article_champ_inexistant(self):
+        # Test de la modification d'un article avec un champ inexistant
         with self.assertRaises(FieldError):
-            self.admin.modifier_article(self.article, prix_inconnu=55.0)
+            self.article.modifier_article(user=User, inexistant='Valeur')
+
+    def test_modifier_categorie_article(self):
+        # Test de la modification de la catégorie d'un article
+        nouvelle_categorie = Category.objects.create(label='Informatique')
+        message = self.article.modifier_categorie_article('Informatique')
+        self.assertEqual(
+            message, 'Smartphone est à présent intégré dans la catégorie Informatique')
+        self.assertEqual(self.article.category, nouvelle_categorie)
+
+    def test_modifier_categorie_article_inexistante(self):
+        # Test de la modification de la catégorie d'un article avec une catégorie inexistante
+        message = self.article.modifier_categorie_article('Inexistant')
+        self.assertEqual(message, 'La catégorie Inexistant n\'existe pas.')
+
+    def test_promotion_est_valide_date_invalide(self):
+        # Test pour vérifier le retour de la fonction pour une date de fin antérieure à la date de début
+        message = self.article.promotion_est_valide(
+            self.date_start_valide, self.date_end_avant_start)
+        self.assertEqual(message, False)
+
+    def test_promotion_est_valide_date_invalide_2(self):
+        # Test pour vérifier le retour de la fonction pour une date de fin de fin antérieure à la date actuelle
+        message = self.article.promotion_est_valide(
+            self.date_start_avant_now, self.date_end_avant_now)
+        self.assertEqual(message, False)
+
+    def test_promotion_est_valide_promotion_existante(self):
+        # Test pour vérifier le retour de la fonction pour une promotion renseignée sur la période de la promotion existante
+        message = self.article.promotion_est_valide(
+            self.date_start_recouvrement, self.date_end_recouvrement)
+        self.assertEqual(message, False)
+
+    def test_promotion_est_valide_promotion_existante_date_debut_uniquement(self):
+        # Test pour vérifier le retour de la fonction pour une promotion renseignée sur la période de la promotion existante
+        message = self.article.promotion_est_valide(
+            self.date_start_recouvrement, self.date_fin_promotion_OK)
+        self.assertEqual(message, False)
+
+    def test_promotion_est_valide_promotion_valide(self):
+        # Test pour vérifier le retour de la fonction pour une promotion renseignée sur la période de la promotion existante
+        message = self.article.promotion_est_valide(
+            self.date_start_promotion_OK, self.date_fin_promotion_OK)
+        self.assertEqual(message, True)
+
+    # Véricication de la validité de la période de promotion
+    def test_tester_validation_promotion_2(self):
+        message = self.article_2.promotion_en_cours()
+        self.assertEqual(message, True)
+
+    # Véricication de la non validité de la période de promotion
+
+    def test_tester_validation_promotion_3(self):
+        message = self.article_3.promotion_en_cours()
+        self.assertEqual(message, False)
 
 
-class AdministratorCreerCategorieTestCase(TestCase):
-    # Test-1 : La création réussie d'une nouvelle catégorie.
-    # Test-2 : La tentative de création d'une catégorie sans libellé.
-    # Test-3 : La tentative de création d'une catégorie qui existe déjà dans la base de données.
+class TestModelePromotion(TestCase):
 
     def setUp(self):
-        self.admin = Administrator.objects.create(
-            name="Bob", last_name="Eponge", pseudo="Boby", email="bob@gmail.com", password="bob"
-        )
+        # Création des dates
+        self.date_start_promotion = date(2024, 1, 1)
+        self.date_fin_promotion = date(2024, 2, 1)
 
-    def test_creer_categorie_reussie(self):
-        result = self.admin.creer_categorie(label="Electronique")
-        self.assertEqual(
-            result, "La catégorie Electronique a été créée avec succès")
-        self.assertTrue(Category.objects.filter(label="Electronique").exists())
+        # Création d'une catégorie
+        self.categorie = Category.objects.create(label='Electronique')
 
-    def test_creer_categorie_sans_label(self):
-        result = self.admin.creer_categorie(label=None)
-        self.assertEqual(result, "Le label n'est pas renseigné")
-
-    def test_creer_categorie_existante(self):
-        Category.objects.create(label="Electronique", admin=self.admin)
-        result = self.admin.creer_categorie(label="Electronique")
-        self.assertEqual(
-            result, "La catégorie Electronique est déjà présente dans la base de données")
-
-
-class AdministratorSupprimerCategorieTestCase(TestCase):
-    # Test-1 : La suppression réussie d'une catégorie existante.
-    # Test-2 : La tentative de suppression d'une catégorie qui n'existe pas.
-    def setUp(self):
-        self.admin = Administrator.objects.create(
-            name="Bob", last_name="Eponge", pseudo="Boby", email="bob@gmail.com", password="bob"
-        )
-
-    def test_creer_categorie_reussie(self):
-        result = self.admin.creer_categorie(label="Electronique")
-        self.assertEqual(
-            result, "La catégorie Electronique a été créée avec succès")
-        self.assertTrue(Category.objects.filter(label="Electronique").exists())
-
-    def test_creer_categorie_sans_label(self):
-        result = self.admin.creer_categorie(label=None)
-        self.assertEqual(result, "Le label n'est pas renseigné")
-
-    def test_creer_categorie_existante(self):
-        Category.objects.create(label="Electronique", admin=self.admin)
-        result = self.admin.creer_categorie(label="Electronique")
-        self.assertEqual(
-            result, "La catégorie Electronique est déjà présente dans la base de données")
-
-
-class AdministratorModifierLabelCategorieTestCase(TestCase):
-    # Test - 1 : Le changement de label réussi pour une catégorie existante.
-    # Test - 2 : La tentative de modification avec un label déjà utilisé par une autre catégorie.
-    # Test - 3 : Une erreur lorsque l'objet fourni n'est pas une instance de la classe Category.
-    def setUp(self):
-        self.admin = Administrator.objects.create(
-            name="Bob", last_name="Eponge", pseudo="Boby", email="bob@gmail.com", password="bob"
-        )
-        self.category_electronique = Category.objects.create(
-            label="Electronique", admin=self.admin)
-        self.category_menage = Category.objects.create(
-            label="Menage", admin=self.admin)
-
-    def test_modifier_label_categorie_succes(self):
-        result = self.admin.modifier_label_categorie(
-            categorie=self.category_electronique, nouveau_label="Electro")
-        self.assertEqual(
-            result, "Le nouveau label Electro a été appliqué à la catégorie")
-        self.category_electronique.refresh_from_db()
-        self.assertEqual(self.category_electronique.label, "Electro")
-
-    def test_modifier_label_categorie_label_existant(self):
-        result = self.admin.modifier_label_categorie(
-            categorie=self.category_electronique, nouveau_label="Menage")
-        self.assertIsNone(result)
-
-    def test_modifier_label_categorie_objet_incorrect(self):
-        with self.assertRaises(TypeError):
-            self.admin.modifier_label_categorie(
-                categorie="NotACategory", nouveau_label="Electro")
-
-    # ... (autres tests)
-
-
-class AdministratorModifierAppartenanceArticleTestCase(TestCase):
-    # Test - 1 : La modification réussie de la catégorie d'un article existant.
-    # Test - 2 : Une erreur lorsqu'une catégorie inexistante est fournie.
-    # Test - 3  :Une erreur lorsque l'objet fourni n'est pas une instance de la classe Article.
-    def setUp(self):
-        self.admin = Administrator.objects.create(
-            name="John", last_name="Doe", pseudo="Johny", email="john@gmail.com", password="john"
-        )
-        self.category_electronics = Category.objects.create(
-            label="Electronics", admin=self.admin)
-        self.category_furniture = Category.objects.create(
-            label="Furniture", admin=self.admin)
+        # Création d'un article
         self.article = Article.objects.create(
-            label="Chair", price=45.0, cat=self.category_furniture, admin=self.admin)
+            label='Ordinateur',
+            description='Un ordinateur puissant',
+            price=999.99,
+            category=self.categorie
+        )
 
-    def test_modifier_appartenance_article_succes(self):
-        result = self.admin.modifier_appartenance_article(
-            self.article, "Electronics")
-        self.assertEqual(
-            result, f"{self.article.label} est à présent intégré dans la catégorie Electronics")
-        self.article.refresh_from_db()
-        self.assertEqual(self.article.cat.label, "Electronics")
+    def test_creer_promotion(self):
+        # Test de la création d'une nouvelle promotion
+        promotion = Promotion.objects.create(
+            start_date=self.date_start_promotion, end_date=self.date_fin_promotion, percent=40, article=self.article)
 
-    def test_modifier_appartenance_article_categorie_inexistante(self):
-        result = self.admin.modifier_appartenance_article(
-            self.article, "NonExistentCategory")
-        self.assertEqual(
-            result, f"La catégorie NonExistentCategory n'existe pas.")
-
-    def test_modifier_appartenance_article_objet_incorrect(self):
-        with self.assertRaises(TypeError):
-            self.admin.modifier_appartenance_article(
-                "NotAnArticle", "Electronics")
-
-
-class AdministratorMettreArticlePromotionTestCase(TestCase):
-    #  Test - 1 : Créer une promotion pour un article valide dans la plage de dates.
-    #  Test - 2 : Essayer de créer une promotion pour un objet qui n'est pas un article.
-    #  Test - 3 : Essayer de créer une promotion avec une valeur hors de la plage autorisée (0, 80).
-    #  Test - 4 : Simuler un échec lors de la création de la promotion.
-    def setUp(self):
-        self.admin = Administrator.objects.create(
-            name="Bob", last_name="Eponge", pseudo="Boby", email="bob@gmail.com", password="bob")
-        self.category = Category.objects.create(label="Mobilier")
-        self.article = Article.objects.create(
-            label="Chaise", price=50, cat=self.category)
-
-    def test_mettre_article_promotion_succes(self):
-        start_date = datetime.now().date()
-        end_date = start_date + timedelta(days=10)
-        result = self.admin.mettre_article_promotion(
-            self.article, 20, start_date, end_date)
-        self.assertEqual(
-            result, f"La promotion a été créée sur l'article {self.article.label} et débutera le {start_date} et prendra fin le {end_date}")
-
-    def test_mettre_article_promotion_objet_incorrect(self):
-        with self.assertRaises(TypeError):
-            self.admin.mettre_article_promotion(
-                "NotAnArticle", 20, datetime.now().date(), datetime.now().date())
-
-    def test_mettre_article_promotion_valeur_incorrecte(self):
-        with self.assertRaises(ValueError):
-            self.admin.mettre_article_promotion(
-                self.article, 90, datetime.now().date(), datetime.now().date())
-
-    def test_mettre_article_promotion_creation_echec(self):
-        with self.assertRaises(ObjectDoesNotExist):
-            # Simulez une erreur ici, par exemple, en passant des dates invalides ou en manipulant la base de données
-            self.admin.mettre_article_promotion(
-                self.article, 20, date(2000, 1, 1), date(2000, 1, 1))
-
-# test - 1 : vérifier que la suppression réussit lorsque l'ID de promotion existe.
-# test - 2 : vérifier que la bonne exception est levée ou le bon message est renvoyé lorsque l'ID de promotion n'existe pas.
-# test - 3 : vérifier que la base de données est mise à jour correctement (i.e., la promotion est effectivement supprimée).
+        self.assertEqual(Promotion.objects.count(), 1)
+        self.assertEqual(promotion.start_date, self.date_start_promotion)
