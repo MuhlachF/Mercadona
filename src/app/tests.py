@@ -4,6 +4,7 @@ from django.core.exceptions import ObjectDoesNotExist, FieldError
 from app.models import Article, Category, Promotion
 from datetime import date, datetime, timedelta
 from django.contrib.auth import get_user_model
+from decimal import Decimal, ROUND_HALF_UP
 
 User = get_user_model()
 
@@ -77,7 +78,7 @@ class TestModeleArticle(TestCase):
         self.article = Article.objects.create(
             label='Smartphone',
             description='Un smartphone très intelligent',
-            price=599.99,
+            price=Decimal(599.99),
             category=self.categorie,
             admin=self.user  # Utilisation de l'utilisateur créé
         )
@@ -85,7 +86,7 @@ class TestModeleArticle(TestCase):
         self.article_2 = Article.objects.create(
             label='Smartphone',
             description='Un smartphone très intelligent',
-            price=600,
+            price=Decimal(2600.79),
             category=self.categorie,
             admin=self.user  # Utilisation de l'utilisateur créé
         )
@@ -93,7 +94,7 @@ class TestModeleArticle(TestCase):
         self.article_3 = Article.objects.create(
             label='PC',
             description='Un PC très performant',
-            price=2600,
+            price=Decimal(2600),
             category=self.categorie,
             admin=self.user  # Utilisation de l'utilisateur créé
         )
@@ -201,13 +202,22 @@ class TestModeleArticle(TestCase):
     # Véricication de la validité de la période de promotion
     def test_tester_validation_promotion_2(self):
         message = self.article_2.promotion_en_cours()
-        self.assertEqual(message, True)
+        self.assertEqual(message, 40)
 
     # Véricication de la non validité de la période de promotion
-
     def test_tester_validation_promotion_3(self):
         message = self.article_3.promotion_en_cours()
-        self.assertEqual(message, False)
+        self.assertEqual(message, 0)
+
+    # Véricication du prix d'un article en promotion
+    def test_tester_prix_article_promotion(self):
+        self.assertEqual(self.article_2.retourner_prix(), Decimal(
+            1560.47).quantize(Decimal('0.00'), rounding=ROUND_HALF_UP))
+
+        # Véricication du prix d'un article qui n'est pas en promotion
+    def test_tester_prix_article_hors_promotion(self):
+        self.assertEqual(self.article_3.retourner_prix(), Decimal(
+            2600).quantize(Decimal('0.00'), rounding=ROUND_HALF_UP))
 
 
 class TestModelePromotion(TestCase):

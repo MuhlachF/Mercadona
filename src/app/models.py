@@ -2,6 +2,7 @@ from django.contrib.auth.models import User
 from django.db import models
 from django.core.exceptions import ObjectDoesNotExist, FieldError
 from datetime import datetime, date
+from decimal import Decimal, ROUND_HALF_UP
 
 
 # Create your models here.
@@ -13,32 +14,27 @@ class Category(models.Model):
 
     Attributs:
         label (CharField): Le nom unique de la catégorie.
-        admin (ForeignKey): L'administrateur qui a créé la catégorie.
 
     Méthodes:
-        lister_categories(): Liste toutes les catégories.
+        modifier_label_categorie(nouveau_label): Modifie le label de la catégorie.
+        lister_categories(): Liste toutes les catégories enregistrées.
         lister_articles_categorie(label_categorie): Liste tous les articles 
-        appartenant à une catégorie donnée.
+            appartenant à une catégorie donnée.
     """
     label = models.CharField(max_length=100, unique=True)
 
     def modifier_label_categorie(self, nouveau_label):
         """
-        Modifie le label d'une catégorie existante.
-
-        Cette méthode prend en paramètre un objet `categorie` et un `nouveau_label`. 
-        Elle vérifie d'abord que l'objet fourni est bien une instance de la classe `Categorie`, 
-        puis elle met à jour le label de la catégorie.
+        Modifie le label de la catégorie.
 
         Parameters:
-        - categorie (Categorie): L'objet catégorie dont le label doit être modifié.
-        - nouveau_label (str): Le nouveau label pour la catégorie.
+            nouveau_label (str): Le nouveau label pour la catégorie.
 
         Returns:
-        str: un message indiquant la réussite de l'opération de modification
+            str: Un message indiquant la réussite ou l'échec de l'opération de modification.
 
         Raises:
-        TypeError: Si l'objet fourni n'est pas une instance de la classe `Categorie`.
+            Category.DoesNotExist: Si la catégorie avec le nouveau label n'existe pas.
         """
 
         try:
@@ -94,12 +90,15 @@ class Article(models.Model):
         price (DecimalField): Le prix de l'article, ne peut pas être vide ou null.
         image (ImageField): Une image représentant l'article, peut être vide ou null.
         admin (ForeignKey): L'administrateur qui a créé ou modifié l'article, peut être null.
-        cat (ForeignKey): La catégorie à laquelle appartient l'article, peut être null.
+        category (ForeignKey): La catégorie à laquelle appartient l'article, peut être null.
 
-    Notes:
-        Les attributs 'admin' et 'cat' sont des clés étrangères. 
-        Ils sont définis comme pouvant être null, ce qui signifie que l'article peut exister 
-        sans administrateur ou catégorie associée.
+    Méthodes:
+        promotion_en_cours(): Détermine si l'article est en promotion.
+        modifier_article(user, **kwargs): Modifie les attributs de l'article.
+        modifier_categorie_article(label_categorie): Modifie la catégorie de l'article.
+        promotion_est_valide(strt_date, ed_date): Vérifie la validité d'une période de promotion.
+        mettre_article_promotion(valeur_promo, start_date, end_date): Applique une promotion à l'article.
+        retourner_prix(): Retourne le prix actuel de l'article, en tenant compte des promotions éventuelles.
     """
     label = models.CharField(max_length=100, blank=False, null=False)
     description = models.TextField(blank=True, default="")
@@ -115,40 +114,29 @@ class Article(models.Model):
         """
         Détermine si l'article est actuellement en promotion.
 
-        Cette méthode vérifie si l'article est lié à une promotion active. 
-        Pour cet exemple, nous supposons qu'une promotion est "active" si elle 
-        est présente dans la base de données.
-
         Returns:
-            bool: True si en promotion, False sinon.
+            Decimal: La valeur en % si en promotion, 0 sinon.
         """
         date_du_jour = date.today()
         articles_promotion = Promotion.objects.filter(article=self)
         for promotion in articles_promotion:
             if promotion.start_date <= date_du_jour <= promotion.end_date:
-                return True
-        return False
+                return Decimal(promotion.percent)
+        return Decimal(0)
 
     def modifier_article(self, user, **kwargs):
         """
         Modifie les attributs d'une instance d'Article.
 
-        Cette méthode prend une instance d'Article et un ensemble indéfini 
-        d'arguments mot-clé,puis modifie les attributs de l'article en fonction 
-        des arguments fournis.
-        Si des modifications sont effectuées, l'attribut 'admin' de l'article 
-        est également mis à jour pour référencer l'administrateur actuel.
-
         Parameters:
-        - article (Article): L'instance de l'Article à modifier
-        - **kwargs: Dictionnaire contenant les champs à modifier et les nouvelles valeurs
+            user (User): L'utilisateur effectuant la modification.
+            **kwargs: Dictionnaire contenant les champs à modifier et les nouvelles valeurs.
 
         Returns:
-        str: un message indiquant la réussite de l'opération de modification
+            str: Un message indiquant la réussite de l'opération de modification.
 
         Raises:
-        - TypeError: Si l'objet passé n'est pas une instance de la classe Article
-        - FieldError: Si un des champs spécifiés n'existe pas dans la classe Article
+            FieldError: Si un des champs spécifiés n'existe pas dans la classe Article.
         """
         modificiations_effectuees = False
         for key, value in kwargs.items():
@@ -168,20 +156,17 @@ class Article(models.Model):
         """
         Modifie la catégorie d'un article existant.
 
-        Cette méthode prend en paramètres un objet `article` de type Article et un label 
-        de catégorie en texte simple.
+        Cette méthode prend en paramètre un `label_categorie` en texte simple.
         Elle recherche une catégorie avec le label correspondant dans la base de données. 
         Si une telle catégorie existe, l'objet `article` est mis à jour avec cette nouvelle catégorie.
 
         Parameters:
-        - article (Article): L'objet Article dont la catégorie doit être modifiée.
         - label_categorie (str): Le label de la nouvelle catégorie que l'article doit avoir.
 
         Returns:
-        str: Un message d'erreur si la catégorie n'est pas trouvée et un message de modification si l'opération a réussi
+        str: Un message d'erreur si la catégorie n'est pas trouvée et un message de modification si l'opération a réussi.
 
         Raises:
-        - TypeError: Si l'objet `article` passé n'est pas une instance de la classe Article.
         - ObjectDoesNotExist: Si la catégorie avec le label spécifié n'existe pas.
         """
 
@@ -203,8 +188,8 @@ class Article(models.Model):
         est postérieure à la date du jour.
 
         Parameters:
-        - strt_date (date): La date de début de la nouvelle promotion
-        - ed_date (date): La date de fin de la nouvelle promotion
+        - strt_date (date): La date de début de la nouvelle promotion.
+        - ed_date (date): La date de fin de la nouvelle promotion.
 
         Returns:
         bool: True si la période de la promotion est valide, sinon False.
@@ -231,22 +216,20 @@ class Article(models.Model):
         """
         Applique une promotion à un article donné pour une période de temps spécifiée.
 
-        Cette méthode crée une nouvelle instance de la classe `Promotion` associée à un article donné,
+        Cette méthode crée une nouvelle instance de la classe `Promotion` associée à cet article,
         et enregistre cette instance dans la base de données.
 
         Parameters:
-        - article (Article): L'instance de l'Article sur lequel appliquer la promotion.
         - valeur_promo (int): La valeur de la réduction en pourcentage (doit être entre 0 et 80).
         - start_date (datetime.date): La date de début de la promotion.
         - end_date (datetime.date): La date de fin de la promotion.
 
         Returns:
-        None: Si la promotion est créée avec succès, aucune valeur n'est retournée.
+        str: Un message indiquant si la promotion a été créée avec succès ou non.
 
         Raises:
-        - TypeError: Si l'objet `article` passé n'est pas une instance de la classe Article.
-        - ValueError: Si la valeur de la promotion n'est pas entre 0 et 80.
-        - ObjectDoesNotExist: Si la création de la promotion échoue pour une raison quelconque (gérée silencieusement).
+        - ValueError: Si la valeur de la promotion n'est pas entre 0 et 80 ou si les dates sont invalides.
+        - ObjectDoesNotExist: Si la création de la promotion échoue pour une raison quelconque.
         """
         # Vérification de la validité des dates
         if start_date < datetime.now().date() or end_date < datetime.now().date():
@@ -272,7 +255,20 @@ class Article(models.Model):
             raise ObjectDoesNotExist(f"L'objet n'existe pas.")
 
     def retourner_prix(self):
-        pass
+        """
+        Retourne le prix actuel de l'article, en tenant compte des promotions éventuelles.
+
+        Returns:
+        Decimal: Le prix actuel de l'article.
+        """
+        if self.promotion_en_cours():
+            prix = self.price - \
+                Decimal(self.price * self.promotion_en_cours() / 100)
+            # Permet de gérer les problèmes d'arrondis
+            return prix.quantize(Decimal('0.00'), rounding=ROUND_HALF_UP)
+
+        else:
+            return self.price
 
 
 class Promotion(models.Model):
