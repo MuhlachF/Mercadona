@@ -240,17 +240,18 @@ class Promotion(models.Model):
         """
         Vérifie la validité d'une période de promotion pour un article donné.
 
-        Cette méthode vérifie si une nouvelle promotion peut être ajoutée en s'assurant 
-        qu'aucun chevauchement de dates ne se produit avec les promotions existantes pour cet article.
-        Elle vérifie également que la date de début est antérieure à la date de fin et que la date de fin
-        est postérieure à la date du jour.
+        Cette méthode effectue plusieurs vérifications :
+        1. Elle s'assure qu'aucun chevauchement de dates ne se produit avec les promotions existantes pour l'article en question.
+        2. Elle vérifie que la date de début est antérieure à la date de fin.
+        3. Elle vérifie que la date de début et la date de fin sont postérieures à la date du jour.
+        4. Elle vérifie que le pourcentage de la promotion est bien renseigné et qu'il est dans une plage acceptable (0 à 50%).
+        5. Elle vérifie qu'un article est bien sélectionné dans la liste déroulante.
 
-        Parameters:
-        - strt_date (date): La date de début de la nouvelle promotion.
-        - ed_date (date): La date de fin de la nouvelle promotion.
+        Raises:
+        - ValidationError: Si une des vérifications échoue.
 
         Returns:
-        bool: True si la période de la promotion est valide, sinon False.
+        None: La méthode ne renvoie rien mais lève une exception en cas d'échec de validation.
         """
 
         # Vérifie que la date de début est antérieure à la date de fin
