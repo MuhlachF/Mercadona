@@ -227,6 +227,17 @@ class Article(models.Model):
     def __str__(self):
         return self.label
 
+    @property
+    def est_en_promotion(self):
+        if self.promotion_en_cours() == Decimal(0):
+            return False
+        else:
+            return True
+
+    @property
+    def valeur_promotion(self):
+        return self.promotion_en_cours()
+
 
 class Promotion(models.Model):
     start_date = models.DateField(verbose_name='Date début de promotion')
