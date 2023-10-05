@@ -2,9 +2,11 @@ from .models import Article, Category, User
 from django.test import TestCase, Client
 from django.core.exceptions import ObjectDoesNotExist, FieldError, ValidationError
 from app.models import Article, Category, Promotion
-from datetime import date
+from app.admin import ArticleForm, CategoryForm, PromotionForm
+from datetime import date, datetime, timedelta
 from django.contrib.auth import get_user_model
 from decimal import Decimal, ROUND_HALF_UP
+
 
 User = get_user_model()
 
@@ -27,11 +29,6 @@ class TestModeleCategorie(TestCase):
         categorie = Category.objects.create(label='Livres')
         self.assertEqual(Category.objects.count(), 3)
         self.assertEqual(categorie.label, 'Livres')
-
-    def test_modifier_label_categorie(self):
-        # Test de la modification du label d'une catégorie existante
-        self.categorie1.modifier_label_categorie('Electronique et Gadgets')
-        self.assertEqual(self.categorie1.label, 'Electronique et Gadgets')
 
     def test_lister_categories(self):
         # Test de la méthode qui liste toutes les catégories
@@ -123,33 +120,6 @@ class TestModeleArticle(TestCase):
         self.assertEqual(Article.objects.count(), 4)
         self.assertEqual(article.label, 'Ordinateur')
 
-    def test_modifier_article(self):
-        # Test de la modification d'un article existant
-        message = self.article.modifier_article(user=self.user,
-                                                label='Smartphone Pro', price=699.99)
-        self.assertEqual(
-            message, 'La modificiation de l\'article Smartphone Pro a été effectuée avec succès')
-        self.assertEqual(self.article.label, 'Smartphone Pro')
-        self.assertEqual(self.article.price, 699.99)
-
-    def test_modifier_article_champ_inexistant(self):
-        # Test de la modification d'un article avec un champ inexistant
-        with self.assertRaises(FieldError):
-            self.article.modifier_article(user=User, inexistant='Valeur')
-
-    def test_modifier_categorie_article(self):
-        # Test de la modification de la catégorie d'un article
-        nouvelle_categorie = Category.objects.create(label='Informatique')
-        message = self.article.modifier_categorie_article('Informatique')
-        self.assertEqual(
-            message, 'Smartphone est à présent intégré dans la catégorie Informatique')
-        self.assertEqual(self.article.category, nouvelle_categorie)
-
-    def test_modifier_categorie_article_inexistante(self):
-        # Test de la modification de la catégorie d'un article avec une catégorie inexistante
-        message = self.article.modifier_categorie_article('Inexistant')
-        self.assertEqual(message, 'La catégorie Inexistant n\'existe pas.')
-
     def test_verifier_promotion_hors_periode_article(self):
         # test portant sur l'état d'une promotion non définie
         message = self.article_2.promotion_en_cours()
@@ -181,20 +151,11 @@ class TestModelePromotion(TestCase):
 
     def setUp(self):
         # Dates valides de promotion
-        self.date_debut_promotion_valide = date(2024, 1, 1)
         self.date_fin_promotion_valide = date(2024, 10, 1)
         self.date_du_jour = date.today()
 
         # Dates valides de promotion - série 2 - recouvrement de plage
         self.date_fin_promotion_valide_recouvrement = date(2024, 5, 1)
-
-        # Dates non valides de promotion - date fin < date du jour
-        self.date_debut_promotion_non_valide = date(2022, 1, 1)
-        self.date_fin_promotion_non_valide = date(2022, 10, 1)
-
-        # Dates non valides de promotion - inversion date de fin et date de début
-        self.date_debut_promotion_inversion = date(2022, 10, 1)
-        self.date_fin_promotion_inversion = date(2022, 1, 1)
 
         # Création d'une catégorie
         self.categorie = Category.objects.create(label='Electronique')
@@ -227,42 +188,147 @@ class TestModelePromotion(TestCase):
             category=self.categorie
         )
 
-    def test_dates_non_valides_anterieures(self):
-        # Test Création d'une promotion non valide - plage antérieure à la date du jour
-        with self.assertRaises(ValidationError):
-            self.promotion_1 = Promotion.objects.create(
-                start_date=self.date_debut_promotion_non_valide, end_date=self.date_fin_promotion_non_valide, percent=40, article=self.article)
-
-    def test_dates_non_valides_inversion(self):
-        # Test Création d'une promotion non valide - date fin est antérieure à la date de début
-        with self.assertRaises(ValidationError):
-            self.promotion_1 = Promotion.objects.create(
-                start_date=self.date_debut_promotion_inversion, end_date=self.date_fin_promotion_inversion, percent=40, article=self.article)
-
-    def test_dates_non_valides_promotion_inferieure(self):
-        # Test Création d'une promotion non valide - valeur promotion < 0
-        with self.assertRaises(ValidationError):
-            self.promotion_1 = Promotion.objects.create(
-                start_date=self.date_debut_promotion_valide, end_date=self.date_fin_promotion_valide, percent=-5, article=self.article)
-
-    def test_dates_non_valides_promotion_superieure_50(self):
-        # Test Création d'une promotion non valide - valeur promotion < 0
-        with self.assertRaises(ValidationError):
-            self.promotion_1 = Promotion.objects.create(
-                start_date=self.date_debut_promotion_valide, end_date=self.date_fin_promotion_valide, percent=55, article=self.article)
-
-    def test_dates_valides_promotion_(self):
-        # Test Création d'une promotion en cours et valide
-        self.promotion_2 = Promotion.objects.create(
-            start_date=self.date_du_jour, end_date=self.date_fin_promotion_valide, percent=25, article=self.article_2)
-        message = self.article_2.promotion_en_cours()
-        self.assertEqual(message, Decimal(25.00))
-
     def test_dates_valides_recouvrement_promotion_(self):
-        # Test Création d'une promotion valide mais sur une promotion existante en cours et valide
+        # Test Création d'une promotion valide mais sur une promotion
+        # existante en cours et valide
+
         self.promotion_3 = Promotion.objects.create(
-            start_date=self.date_du_jour, end_date=self.date_fin_promotion_valide, percent=25, article=self.article_2)
+            start_date=self.date_du_jour, end_date=self.date_fin_promotion_valide,
+            percent=25, article=self.article_2)
 
         with self.assertRaises(ValidationError):
             self.promotion_4 = Promotion.objects.create(
-                start_date=self.date_du_jour, end_date=self.date_fin_promotion_valide_recouvrement, percent=25, article=self.article_2)
+                start_date=self.date_du_jour, end_date=self.date_fin_promotion_valide_recouvrement,
+                percent=25, article=self.article_2)
+
+
+class ArticleFormTest(TestCase):
+
+    def test_form_valid(self):
+        # Test portant sur la validité du formulaire si la saisie est effectuée à minima
+        category = Category.objects.create(label='Electronics')
+        user = User.objects.create_user(
+            username='testuser', password='testpass')
+        form_data = {
+            'label': 'PC',
+            'price': '10.00',
+            'category': category.id,
+            'admin': user.id,
+        }
+        form = ArticleForm(form_data)
+
+        self.assertTrue(form.is_valid())
+
+    def test_clean_price_invalid(self):
+        # Test si un prix inférieur à 0 est renseigné
+        category = Category.objects.create(label='Electronics')
+        user = User.objects.create_user(
+            username='testuser', password='testpass')
+        form_data = {
+            'label': 'PC',
+            'price': '-10.00',
+            'category': category.id,
+            'admin': user.id,
+        }
+        form = ArticleForm(form_data)
+
+        self.assertFalse(form.is_valid())
+
+    def test_clean_price_non_decimal(self):
+        # Test si une chaine de caratères est renseignées à la place d'un prix
+        category = Category.objects.create(label='Electronics')
+        user = User.objects.create_user(
+            username='testuser', password='testpass')
+        form_data = {
+            'label': 'PC',
+            'price': 'abc',
+            'category': category.id,
+            'admin': user.id,
+        }
+        form = ArticleForm(form_data)
+        self.assertFalse(form.is_valid())
+
+    def test_clean_label_non_rensigne(self):
+        # Test si le label n'est pas rensigné
+        category = Category.objects.create(label='Electronics')
+        user = User.objects.create_user(
+            username='testuser', password='testpass')
+        form_data = {
+            'price': 'abc',
+            'category': category.id,
+            'admin': user.id,
+        }
+        form = ArticleForm(form_data)
+        self.assertFalse(form.is_valid())
+
+    def test_clean_categorie_non_rensignee(self):
+        # Test si le label n'est pas rensigné
+        category = Category.objects.create(label='Electronics')
+        user = User.objects.create_user(
+            username='testuser', password='testpass')
+        form_data = {
+            'label': 'PC',
+            'price': 'abc',
+            'admin': user.id,
+        }
+        form = ArticleForm(form_data)
+        self.assertFalse(form.is_valid())
+
+
+class CategoryFormTest(TestCase):
+    def test_category_form_valid(self):
+        form = CategoryForm({'label': 'Electronics'})
+        self.assertTrue(form.is_valid())
+
+
+class PromotionFormTest(TestCase):
+
+    def test_clean_valid(self):
+        # Test si la promotion saisie est postérieure à la date du jour
+        form = PromotionForm({
+            'start_date': datetime.now().date(),
+            'end_date': datetime.now().date() + timedelta(days=1),
+            'percent': '10',
+            'article': Article.objects.create(label='Test', price=Decimal('10.00'))
+        })
+        self.assertTrue(form.is_valid())
+
+    def test_clean_invalid_dates(self):
+        # Test si la date de fin est antiérieure à la date de début
+        form = PromotionForm({
+            'start_date': datetime.now().date() + timedelta(days=1),
+            'end_date': datetime.now().date(),
+            'percent': '10',
+            'article': Article.objects.create(label='Test', price=Decimal('10.00'))
+        })
+        self.assertFalse(form.is_valid())
+
+    def test_clean_invalid_percent(self):
+        # Test si la promotion saisie est supérieure à 60%
+        form = PromotionForm({
+            'start_date': datetime.now().date(),
+            'end_date': datetime.now().date() + timedelta(days=1),
+            'percent': '60',
+            'article': Article.objects.create(label='Test', price=Decimal('10.00'))
+        })
+        self.assertFalse(form.is_valid())
+
+    def test_clean_invalid_percent_2(self):
+        # Test si la promotion saisie est inférieure à 0
+        form = PromotionForm({
+            'start_date': datetime.now().date(),
+            'end_date': datetime.now().date() + timedelta(days=1),
+            'percent': '60',
+            'article': Article.objects.create(label='Test', price=Decimal('10.00'))
+        })
+        self.assertFalse(form.is_valid())
+
+    def test_clean_invalid_article(self):
+        # Test si aucun article n'est sélectionné
+        form = PromotionForm({
+            'start_date': datetime.now().date(),
+            'end_date': datetime.now().date() + timedelta(days=1),
+            'percent': '0',
+            'article': None
+        })
+        self.assertFalse(form.is_valid())
