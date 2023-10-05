@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User
 from django.db import models
-from django.core.exceptions import ObjectDoesNotExist, FieldError, ValidationError
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from datetime import datetime, date
 from decimal import Decimal, ROUND_HALF_UP
 from django.utils.html import mark_safe
@@ -25,36 +25,9 @@ class Category(models.Model):
     label = models.CharField(
         max_length=100, unique=True, verbose_name='Catégorie')
 
-    # Permet de spécifier le tri d'affichage des catégories sur la vue Admin
     class Meta:
-        ordering = ['label']
         verbose_name = 'Catégorie'
-
-    def modifier_label_categorie(self, nouveau_label):
-        """
-        Modifie le label de la catégorie.
-
-        Parameters:
-            nouveau_label (str): Le nouveau label pour la catégorie.
-
-        Returns:
-            str: Un message indiquant la réussite ou l'échec de l'opération de modification.
-
-        Raises:
-            Category.DoesNotExist: Si la catégorie avec le nouveau label n'existe pas.
-        """
-
-        try:
-            existing_category = Category.objects.get(label=nouveau_label)
-            if existing_category:
-                return f"La catégorie {nouveau_label} existe déjà"
-        except Category.DoesNotExist:
-            pass
-
-        self.label = nouveau_label
-        self.save()
-
-        return f"Le nouveau label {nouveau_label} a été appliqué à la catégorie"
+        ordering = ['label']
 
     def __str__(self):
         return self.label
@@ -123,11 +96,13 @@ class Article(models.Model):
     category = models.ForeignKey(
         "Category", null=True, on_delete=models.SET_NULL, verbose_name='Catégorie')
 
-    # Permet de spécifier le tri d'affichage des articles sur la vue Admin
     class Meta:
-        ordering = ['label']
+        # Nom affiché sur la vue Admin
         verbose_name = 'Article'
+        # Permet de spécifier le tri d'affichage des articles sur la vue Admin
+        ordering = ['label']
 
+    # Gestion de l'affichage des images des articles sur la vue Admin
     def image_tag(self):
         return mark_safe('<img src="/media/%s" width="100" />' % (self.image))
 
@@ -148,60 +123,6 @@ class Article(models.Model):
                 return Decimal(promotion.percent)
         return Decimal(0)
 
-    def modifier_article(self, user, **kwargs):
-        """
-        Modifie les attributs d'une instance d'Article.
-
-        Parameters:
-            user (User): L'utilisateur effectuant la modification.
-            **kwargs: Dictionnaire contenant les champs à modifier et les nouvelles valeurs.
-
-        Returns:
-            str: Un message indiquant la réussite de l'opération de modification.
-
-        Raises:
-            FieldError: Si un des champs spécifiés n'existe pas dans la classe Article.
-        """
-        modificiations_effectuees = False
-        for key, value in kwargs.items():
-            if hasattr(self, key):
-                setattr(self, key, value)
-                modificiations_effectuees = True
-
-            else:
-                raise FieldError(f"Le champ {key} n'a pas été trouvé")
-
-        if modificiations_effectuees:
-            self.admin = user
-            self.save()
-            return f"La modificiation de l'article {self.label} a été effectuée avec succès"
-
-    def modifier_categorie_article(self, label_categorie):
-        """
-        Modifie la catégorie d'un article existant.
-
-        Cette méthode prend en paramètre un `label_categorie` en texte simple.
-        Elle recherche une catégorie avec le label correspondant dans la base de données. 
-        Si une telle catégorie existe, l'objet `article` est mis à jour avec cette nouvelle catégorie.
-
-        Parameters:
-        - label_categorie (str): Le label de la nouvelle catégorie que l'article doit avoir.
-
-        Returns:
-        str: Un message d'erreur si la catégorie n'est pas trouvée et un message de modification si l'opération a réussi.
-
-        Raises:
-        - ObjectDoesNotExist: Si la catégorie avec le label spécifié n'existe pas.
-        """
-
-        try:
-            label_cat = Category.objects.get(label=label_categorie)
-            self.category = label_cat
-            self.save()
-            return f"{self.label} est à présent intégré dans la catégorie {label_categorie}"
-        except ObjectDoesNotExist:
-            return f"La catégorie {label_categorie} n'existe pas."
-
     def retourner_prix(self):
         """
         Retourne le prix actuel de l'article, en tenant compte des promotions éventuelles.
@@ -218,18 +139,6 @@ class Article(models.Model):
         else:
             # return self.price.quantize(Decimal('0.00'), rounding=ROUND_HALF_UP)
             return "Aucune en cours"
-
-    def clean(self):
-        if self.price <= 0:
-            raise ValidationError(
-                "Le prix ne peut pas être inférieur à 0€")
-        return True
-
-    def save(self, *args, **kwargs):
-        # Appeler la méthode de validation de la promotion avant de sauvegarder
-        self.clean()
-        # Appeler la méthode 'save' originale
-        super(Article, self).save(*args, **kwargs)
 
     def __str__(self):
         return self.label
@@ -271,31 +180,6 @@ class Promotion(models.Model):
         Returns:
         None: La méthode ne renvoie rien mais lève une exception en cas d'échec de validation.
         """
-
-        # Vérifie que la date de début est antérieure à la date de fin
-        if self.start_date > self.end_date:
-            raise ValidationError(
-                "La date de fin est antérieure à la date de fin.")
-
-        # Vérification de la validité des dates
-        if self.start_date < datetime.now().date() or self.end_date < datetime.now().date():
-            raise ValidationError(
-                "La date de début ou de fin est déjà échue.")
-
-        # Vérification du champ pourcentage est-il bien renseigné
-        if self.percent:
-            # Vérification de la plage
-            if not (0 < self.percent < 50):
-                raise ValidationError(
-                    "La valeur de la promotion ne peut pas dépasser 50%")
-        else:
-            raise ValidationError(
-                "Veuillez renseigner un pourcentage dans le champs"
-            )
-        if self.article is None:
-            raise ValidationError(
-                "Veuillez sélectionner un article dans la liste")
-
         articles_promotion = Promotion.objects.filter(article=self.article)
         if articles_promotion.exists():
             for promotion in articles_promotion:
