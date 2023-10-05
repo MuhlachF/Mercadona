@@ -1,12 +1,9 @@
 from django.contrib.auth.models import User
 from django.db import models
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
-from datetime import datetime, date
+from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 from django.utils.html import mark_safe
-
-
-# Create your models here.
 
 
 class Category(models.Model):
@@ -17,7 +14,7 @@ class Category(models.Model):
         label (CharField): Le nom unique de la catégorie.
 
     Méthodes:
-        modifier_label_categorie(nouveau_label): Modifie le label de la catégorie.
+        __str__(): Retourne le label de la catégorie.
         lister_categories(): Liste toutes les catégories enregistrées.
         lister_articles_categorie(label_categorie): Liste tous les articles 
             appartenant à une catégorie donnée.
@@ -68,20 +65,19 @@ class Article(models.Model):
     Représente un article dans une boutique en ligne.
 
     Attributs:
-        label (CharField): Le nom de l'article, ne peut pas être vide ou null.
-        description (TextField): Une description textuelle de l'article, peut être vide.
-        price (DecimalField): Le prix de l'article, ne peut pas être vide ou null.
-        image (ImageField): Une image représentant l'article, peut être vide ou null.
-        admin (ForeignKey): L'administrateur qui a créé ou modifié l'article, peut être null.
-        category (ForeignKey): La catégorie à laquelle appartient l'article, peut être null.
+        label (CharField): Le nom de l'article.
+        description (TextField): Une description textuelle de l'article.
+        price (DecimalField): Le prix de l'article.
+        image (ImageField): Une image représentant l'article.
+        admin (ForeignKey): L'administrateur qui a créé ou modifié l'article.
+        category (ForeignKey): La catégorie à laquelle appartient l'article.
 
     Méthodes:
+        __str__(): Retourne le label de l'article.
         promotion_en_cours(): Détermine si l'article est en promotion.
-        modifier_article(user, **kwargs): Modifie les attributs de l'article.
-        modifier_categorie_article(label_categorie): Modifie la catégorie de l'article.
-        promotion_est_valide(strt_date, ed_date): Vérifie la validité d'une période de promotion.
-        mettre_article_promotion(valeur_promo, start_date, end_date): Applique une promotion à l'article.
         retourner_prix(): Retourne le prix actuel de l'article, en tenant compte des promotions éventuelles.
+        est_en_promotion: Propriété indiquant si l'article est en promotion.
+        valeur_promotion: Propriété indiquant la valeur de la promotion en cours.
     """
     label = models.CharField(max_length=100, blank=False,
                              null=False, verbose_name='Article')
@@ -96,9 +92,11 @@ class Article(models.Model):
     category = models.ForeignKey(
         "Category", null=True, on_delete=models.SET_NULL, verbose_name='Catégorie')
 
+    def __str__(self):
+        return self.label
+
     class Meta:
-        # Nom affiché sur la vue Admin
-        verbose_name = 'Article'
+        verbose_name = 'Article'  # Nom affiché sur la vue Admin
         # Permet de spécifier le tri d'affichage des articles sur la vue Admin
         ordering = ['label']
 
@@ -128,7 +126,7 @@ class Article(models.Model):
         Retourne le prix actuel de l'article, en tenant compte des promotions éventuelles.
 
         Returns:
-        Decimal: Le prix actuel de l'article.
+            Decimal: Le prix actuel de l'article.
         """
         if self.promotion_en_cours():
             prix = self.price - \
@@ -139,9 +137,6 @@ class Article(models.Model):
         else:
             # return self.price.quantize(Decimal('0.00'), rounding=ROUND_HALF_UP)
             return "Aucune en cours"
-
-    def __str__(self):
-        return self.label
 
     @property
     def est_en_promotion(self):
@@ -156,6 +151,21 @@ class Article(models.Model):
 
 
 class Promotion(models.Model):
+    """
+    Représente une promotion appliquée à un article.
+
+    Attributs:
+        start_date (DateField): Date de début de la promotion.
+        end_date (DateField): Date de fin de la promotion.
+        percent (DecimalField): Pourcentage de remise.
+        article (ForeignKey): Article sur lequel la promotion est appliquée.
+
+    Méthodes:
+        clean(): Valide les données avant de sauvegarder la promotion.
+        save(*args, **kwargs): Sauvegarde la promotion après validation.
+        purger_promotion(): Supprime toutes les promotions expirées.
+    """
+
     start_date = models.DateField(verbose_name='Date début de promotion')
     end_date = models.DateField(verbose_name='Date de fin de promotion')
     percent = models.DecimalField(
@@ -167,15 +177,11 @@ class Promotion(models.Model):
         """
         Vérifie la validité d'une période de promotion pour un article donné.
 
-        Cette méthode effectue plusieurs vérifications :
+        Cette méthode effectue la vérification suivante :
         1. Elle s'assure qu'aucun chevauchement de dates ne se produit avec les promotions existantes pour l'article en question.
-        2. Elle vérifie que la date de début est antérieure à la date de fin.
-        3. Elle vérifie que la date de début et la date de fin sont postérieures à la date du jour.
-        4. Elle vérifie que le pourcentage de la promotion est bien renseigné et qu'il est dans une plage acceptable (0 à 50%).
-        5. Elle vérifie qu'un article est bien sélectionné dans la liste déroulante.
 
         Raises:
-        - ValidationError: Si une des vérifications échoue.
+        - ValidationError: Si une promotion est déjà appliquée sur cette plage
 
         Returns:
         None: La méthode ne renvoie rien mais lève une exception en cas d'échec de validation.
@@ -189,6 +195,17 @@ class Promotion(models.Model):
                         "Une promotion est déjà appliquée sur cette plage")
 
     def save(self, *args, **kwargs):
+        """
+        Sauvegarde la promotion après validation.
+
+        Cette méthode appelle d'abord la méthode `clean` pour valider les données, puis elle appelle la méthode `save` originale pour sauvegarder la promotion.
+
+        Parameters:
+            *args, **kwargs: Arguments et mots-clés arguments passés à la méthode `save` originale.
+
+        Returns:
+            None: La méthode ne renvoie rien mais sauvegarde la promotion en base de données.
+        """
         # Appeler la méthode de validation de la promotion avant de sauvegarder
         self.clean()
         # Appeler la méthode 'save' originale
@@ -202,13 +219,13 @@ class Promotion(models.Model):
         Cette méthode parcourt toutes les instances de la classe `Promotion` et supprime celles dont la `end_date` est antérieure à la date du jour.
 
         Parameters:
-        Aucun
+            Aucun
 
         Returns:
-        None: La méthode ne renvoie rien, mais supprime les promotions expirées de la base de données.
+            None: La méthode ne renvoie rien, mais supprime les promotions expirées de la base de données.
 
         Raises:
-        ObjectDoesNotExist: Une exception est levée si l'objet promotion n'est pas trouvé, mais est gérée silencieusement dans la méthode.
+            ObjectDoesNotExist: Une exception est levée si l'objet promotion n'est pas trouvé, mais est gérée silencieusement dans la méthode.
         """
         date_du_jour = date.today()
         try:
