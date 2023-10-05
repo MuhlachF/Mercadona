@@ -13,10 +13,11 @@ purger_les_promotions.short_description = "Purger les promotions"
 
 class ArticleAdmin(admin.ModelAdmin):
     list_display = ("label", "description", "price",
-                    "image", "category", "display_retourner_prix", "admin")
+                    "category", 'image_tag',  "display_retourner_prix", "admin")
     list_filter = ("category", )
     search_fields = ("label", )
     readonly_fields = ('admin',)
+    fields = ['image_tag']
 
     def display_retourner_prix(self, obj):
         return obj.retourner_prix()

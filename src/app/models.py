@@ -3,6 +3,7 @@ from django.db import models
 from django.core.exceptions import ObjectDoesNotExist, FieldError, ValidationError
 from datetime import datetime, date
 from decimal import Decimal, ROUND_HALF_UP
+from django.utils.html import mark_safe
 
 
 # Create your models here.
@@ -126,6 +127,11 @@ class Article(models.Model):
     class Meta:
         ordering = ['label']
         verbose_name = 'Article'
+
+    def image_tag(self):
+        return mark_safe('<img src="/media/%s" width="100" />' % (self.image))
+
+    image_tag.allow_tags = True
 
     def promotion_en_cours(self):
         """
