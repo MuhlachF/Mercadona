@@ -8,7 +8,11 @@
     <h1>Le site de Mercadona</h1>
     {% for article in page_obj %}
         <h2>
-            {{ article.label }} {{ article.image }}
+            {% if article.image %}
+                <img src="{{ article.image.url }}" alt="{{image.description}}" height ='100px'>
+            {% endif %}
+            
+            {{ article.label }}  {{article.description|truncatewords:10}}
             {% if article.est_en_promotion == False %}
                 {{ article.price }}€TTC
             {% else %}

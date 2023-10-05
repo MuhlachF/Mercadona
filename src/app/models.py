@@ -115,7 +115,8 @@ class Article(models.Model):
         blank=True, default="", verbose_name='Description')
     price = models.DecimalField(
         max_digits=6, decimal_places=2, blank=False, null=False, verbose_name='Prix')
-    image = models.ImageField(blank=True, null=True, verbose_name='Image')
+    image = models.ImageField(blank=True, null=True,
+                              verbose_name='Image', upload_to='app')
     admin = models.ForeignKey(
         User, null=True, on_delete=models.SET_NULL, verbose_name='Créateur')
     category = models.ForeignKey(
