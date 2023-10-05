@@ -1,0 +1,34 @@
+# Import des modèles
+from app.models import Article, Category, Promotion
+
+from django.contrib.auth.models import User
+from datetime import date, datetime
+
+# récupérer le user
+admin = User.objects.get(id = 1)
+
+# récupérer le produit
+prod = Article.objects.get(id = 1)
+
+# modifier le produit
+admin.modifier_article(price=99, label = "Informatique")
+
+# récupérer une catégorie
+cate = Category.objects.get(label = "Informatique")
+
+# création d'une catégorie
+Category.objects.create(label = 'Informatique')
+
+# Modifier le nom d'une catégorie
+cate.modifier_label_categorie("Robotique")
+
+
+# création d'un produit
+cate = Category.objects.get(label = 'Informatique')
+Article.objects.create(label = "clé USB", price = 29.90, category = cate)
+
+# mettre un produit en promotion
+date_start = date(2021, 1, 1)
+date_end = date(2023, 1, 2)
+admin.mettre_article_promotion(prod, 30, date_start, date_end)
+
