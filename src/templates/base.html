@@ -10,17 +10,41 @@
     <title>
         {% block title %}
         
-        Document
-        
-        {% endblock %}}
+        {% endblock %}
     </title>
 </head>
 <body>
+    
+    {% if user.is_authenticated %}
+    <!-- Menu pour les utilisateurs authentifiés -->
+    <nav class="navbar bg-dark border-bottom border-body" data-bs-theme="dark">
+        <div class="container-fluid px-5">
+            <a class="navbar-brand" href="{% url 'admin:app_article_add' %}">Ajouter article</a>
+            <a class="navbar-brand" href="{% url 'admin:app_category_add' %}">Ajouter catégorie</a>
+            <a class="navbar-brand" href="{% url 'admin:app_promotion_add' %}">Ajouter promotion</a>
+            <a class="navbar-brand" href="{% url 'admin:logout' %}">Se déconnecter</a>
+        </div>
+    </nav>
+{% else %}
+    <!-- Menu pour les utilisateurs non authentifiés -->
+    <nav class="navbar" style="background-color: #e3f2fd;">
+        <div class="container-fluid">
+            <img src="{% static 'img/mercadona_design.png' %}" alt="Logo" width="100" class="d-inline-block align-text-top mx-5">
+            <a class="navbar-brand mx-5" href="{% url 'admin:login' %}">Se connecter</a>
+        </div>
+    </nav>
+    <div class="bg-dark text-white container-fluid text-center p-2">
+        <h1>Pourquoi attendre les soldes ?</h1>
+        <h6> Obtenez des remises toute l'année ici !</h6>
+    </div>
+{% endif %}
+
+
     <div class="container-lg">
+        
         <section id = "contenu">
             {% block content %}
-            
-            
+                
             {% endblock content %}
         </section>
     </div>

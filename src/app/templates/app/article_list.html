@@ -5,11 +5,12 @@
 {% endblock title %}
 
 {% block content %}
-<h1>Le site de Mercadona</h1>
+
 
 <!-- Menu déroulant pour le filtrage par catégorie -->
-<select class="form-select" aria-label="Default select example" id="categorySelector">
+<select class="form-select m-5" aria-label="Default select example" id="categorySelector">
     <option selected>Appliquer un filtre selon les catégories</option>
+    <option value="">Toutes les catégories</option>
     {% for element in Categories %}    
         <option value="{{element.id}}">{{element.label}}</option>
     {% endfor %}
@@ -29,40 +30,18 @@
     </thead>
 
     <!-- Affichage des articles dans le tableau -->
-{% for article in page_obj %}
-    <tr height="100px">
-        <td class = "align-middle text-center">
-            {% if article.image %}
-                <img src="{{ article.image.url }}" alt="{{image.description}}" height ='100px'>
-            {% endif %}
-        </td>
-        <td class = "align-middle" style="font-weight: bold;">
-            {{ article.label }}
-        </td>
-        <td class = "align-middle">
-            {{article.description|truncatewords:10}}
-        </td>
-        <td class = "align-middle">
-            {{article.category}}
-        </td>
 
-        <td class = "align-middle">
-            {% if article.est_en_promotion == False %}
-                {{ article.price }}€TTC
-            {% else %}      
-            <span class="text-decoration-line-through">{{ article.price }}€TTC</span> <span class="text-danger fw-bold">{{ article.retourner_prix }}€TTC </span>
-            {% endif %}
-        </td>
-        <td class = "align-middle">
-            {% if article.est_en_promotion == True %}
-                <span class="badge rounded-pill text-bg-danger">{{ article.valeur_promotion }}%</span>
-            {% endif %}
-        </td>
-    </tr>
-{% endfor %}
+
+<tbody id = "articleTable">
+    <!-- Remplissage automatique réalisé avec l'API DOM-->
+</tbody>
+
 </table>
 
-<!-- Pagination -->
+
+
+
+<!-- Pagination A développer sur la base de ce modèle
 <nav aria-label="Page navigation" >
     <ul class="pagination justify-content-center">
         {% if page_obj.has_previous %}
@@ -102,6 +81,7 @@
         {% endif %}
     </ul>
 </nav>
+-->
 {% endblock content %}
 
 
