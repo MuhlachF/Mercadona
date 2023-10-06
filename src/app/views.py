@@ -1,5 +1,5 @@
 from django.shortcuts import render
-
+from django.http import JsonResponse
 from django.views.generic import ListView
 
 from app.models import Article, Category
@@ -19,3 +19,13 @@ class AppHome(ListView):
         context['Categories'] = Category.objects.all()
 
         return context
+
+
+def get_articles(request):
+    category = request.GET.get('category', None)
+    if category:
+        articles = Article.objects.filter(category=category)
+    else:
+        articles = Article.objects.all()
+    data = [{"id": article.id, "name": article.label} for article in articles]
+    return JsonResponse(data, safe=False)
