@@ -2,6 +2,11 @@ from django.shortcuts import render
 from django.http import JsonResponse
 from django.views.generic import ListView
 
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+
+from .serializers import ArticlesSerializer
+
 from app.models import Article, Category
 
 
@@ -52,3 +57,11 @@ def get_articles(request):
     # Envoie la réponse en format JSON.
     # L'argument safe=False est nécessaire car nous retournons une liste et non un dictionnaire.
     return JsonResponse(data, safe=False)
+
+
+@api_view(['GET'])
+def get_articles2(request):
+    articles = Article.objects.all()
+    serializer = ArticlesSerializer(articles, many=True)
+
+    return Response({"Articles": serializer.data})
