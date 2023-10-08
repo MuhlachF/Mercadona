@@ -17,14 +17,16 @@ function truncateWords(str, no_words) {
 // Fonction pour charger des articles depuis l'API
 function loadArticles(category) {
     // Faire une requête fetch pour obtenir des articles depuis l'API
-    fetch(`/api/get_articles/?category=${category}`)
+    fetch(`/api2/get_articles/?category=${category}`)
         .then(response => response.json())
         .then(data => {
             const articleTableBody = document.getElementById('articleTable');
             articleTableBody.innerHTML = ''; // Effacer le contenu existant du tbody
 
             // Parcourir chaque article et créer une ligne dans le tableau
-            data.forEach(article => {
+            console.log(data)
+
+            data.Articles.forEach(article => {
                 const row = document.createElement('tr');
                 row.style.height = '100px';
                 row.innerHTML = `
@@ -33,7 +35,7 @@ function loadArticles(category) {
                         </td>
                     
                         <td class="align-middle" style="font-weight: bold;">
-                            ${article.name}
+                            ${article.label}
                         </td>
 
                         <td class="align-middle">
@@ -42,7 +44,7 @@ function loadArticles(category) {
                         </td>
 
                         <td class="align-middle">
-                            ${article.category}
+                            ${article.category_label}
                         </td>
                         
                         <td class="align-middle">

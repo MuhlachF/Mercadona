@@ -7,6 +7,10 @@ from rest_framework.response import Response
 
 from .serializers import ArticlesSerializer
 
+from .filters import ArticlesFilter
+
+from rest_framework.pagination import PageNumberPagination
+
 from app.models import Article, Category
 
 
@@ -61,7 +65,38 @@ def get_articles(request):
 
 @api_view(['GET'])
 def get_articles2(request):
-    articles = Article.objects.all()
-    serializer = ArticlesSerializer(articles, many=True)
+    """
+    Vue d'API pour récupérer une liste filtrée d'articles.
 
-    return Response({"Articles": serializer.data})
+    Cette fonction utilise django-filters pour appliquer des filtres à la liste d'articles 
+    récupérée depuis le modèle `Article`. Elle utilise également la pagination pour limiter 
+    le nombre de résultats retournés par requête.
+
+    Parameters:
+        request: Objet HttpRequest contenant les métadonnées de la requête HTTP.
+
+    Returns:
+        Une réponse HTTP avec la liste paginée et filtrée d'articles sous forme JSON.
+
+    """
+    # Applique les filtres sur le queryset en utilisant la classe ArticlesFilter
+    filterset = ArticlesFilter(
+        request.GET, queryset=Article.objects.all().order_by('label'))
+
+    # Compte le nombre total d'articles après filtrage
+    count = filterset.qs.count()
+
+    # Paramètres de la pagination
+    resultatPerPage = 5
+    paginator = PageNumberPagination()
+    paginator.page_size = resultatPerPage
+
+    # Applique la pagination au queryset filtré
+    queryset = paginator.paginate_queryset(filterset.qs, request)
+
+    # Sérialisation des objets Article
+    serializer = ArticlesSerializer(queryset, many=True)
+
+    # Retourne la réponse
+
+    return Response({"count": count, "resultatPerPage": resultatPerPage, "Articles": serializer.data})
