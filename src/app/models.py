@@ -149,6 +149,10 @@ class Article(models.Model):
     def valeur_promotion(self):
         return self.promotion_en_cours()
 
+    @property
+    def retour_prix(self):
+        return self.retourner_prix()
+
 
 class Promotion(models.Model):
     """
